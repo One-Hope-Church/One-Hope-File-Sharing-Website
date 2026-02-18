@@ -11,8 +11,15 @@ export interface SessionData {
   isLoggedIn: boolean;
 }
 
+const MIN_LENGTH = 32;
+const defaultDevSecret = "dev-secret-onehope-resources-min-32-chars-long!!";
+const sessionPassword =
+  typeof process.env.SESSION_SECRET === "string" && process.env.SESSION_SECRET.length >= MIN_LENGTH
+    ? process.env.SESSION_SECRET
+    : defaultDevSecret;
+
 const sessionOptions: SessionOptions = {
-  password: process.env.SESSION_SECRET || "dev-secret-min-32-chars-long!!",
+  password: sessionPassword,
   cookieName: "onehope_resources_session",
   cookieOptions: {
     httpOnly: true,

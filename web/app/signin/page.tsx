@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { supabaseAuthClient, isSupabaseAuthConfigured } from "@/lib/supabase-auth-client";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -15,24 +16,40 @@ export default function SignInPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (!isSupabaseAuthConfigured() || !supabaseAuthClient) {
+      setError("Sign-in is not configured. Add NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.");
+      return;
+    }
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/send-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+      const { error: sbError } = await supabaseAuthClient.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          emailRedirectTo: typeof window !== "undefined" ? `${window.location.origin}/verify` : undefined,
+        },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Something went wrong");
+      if (sbError) {
+        setError(sbError.message || "Failed to send code");
         return;
       }
-      router.push(`/verify?email=${encodeURIComponent(email)}&callbackUrl=${encodeURIComponent(callbackUrl)}`);
+      router.push(`/verify?email=${encodeURIComponent(email.trim())}&callbackUrl=${encodeURIComponent(callbackUrl)}`);
     } catch {
       setError("Something went wrong");
     } finally {
       setLoading(false);
     }
+  }
+
+  if (!isSupabaseAuthConfigured()) {
+    return (
+      <div className="mx-auto max-w-md px-6 py-12">
+        <h1 className="text-2xl font-bold text-onehope-black">Sign in</h1>
+        <p className="mt-2 text-red-600">
+          Sign-in is not configured. Set <code className="rounded bg-gray-100 px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in <code className="rounded bg-gray-100 px-1">web/.env</code> (get it from Supabase Dashboard → Project Settings → API → anon public).
+        </p>
+        <Link href="/" className="mt-4 inline-block text-primary hover:underline">Back to home</Link>
+      </div>
+    );
   }
 
   return (

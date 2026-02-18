@@ -1,5 +1,8 @@
 # Dependencies and build
 web/node_modules
+studio/node_modules
+studio/dist
+studio/.sanity
 web/.next
 web/out
 web/build
@@ -8,9 +11,11 @@ web/build
 
 # Env and secrets
 .env
+.env.example
 .env.local
 .env.*.local
 web/.env.local
+studio/.env
 
 # OS and IDE
 .DS_Store

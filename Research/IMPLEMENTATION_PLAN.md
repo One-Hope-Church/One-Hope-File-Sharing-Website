@@ -200,8 +200,33 @@ This document outlines the **entire implementation** for the One Hope Resources 
 
 ---
 
-## 10. Summary checklist
+## 10. Step-by-step setup (after app is built)
 
+**Step 0 – User base (Supabase)**  
+- Use Supabase as the user store. Sign-up stays the same (email + OTP via Resend).  
+- **Users table:** `id` (uuid), `email` (unique), `role` (`user` | `admin`), `created_at`, `updated_at`.  
+- On first successful verify: create row with default `role: 'user'`. On later sign-ins: read role from Supabase.  
+- **Toggle role:** Admins can change any user to admin or user (admin UI or Supabase dashboard).  
+- When Supabase is configured, role always comes from the DB. Optional fallback: if Supabase is not set, use `ADMIN_EMAILS` env so dev still works.
+- **First admin:** Put the first admin’s email in `ADMIN_EMAILS` before they sign in; when they verify, they’re created with `role: admin`. After that, use **Admin → Users** in the app to toggle anyone else.
+
+**Step 1 – Sanity**  
+- Add schemas: resourceCollection, resourceSection, resource (see §3). Set `NEXT_PUBLIC_SANITY_PROJECT_ID`, `SANITY_DATASET`.
+
+**Step 2 – Resend**  
+- Configure domain/from address; set `RESEND_API_KEY`, optional `RESEND_FROM_EMAIL`.
+
+**Step 3 – S3**  
+- Create bucket and IAM user; set `AWS_*`, `S3_BUCKET_RESOURCES`. CORS for browser uploads if needed.
+
+**Step 4 – Production**  
+- Set strong `SESSION_SECRET` (32+ chars). Deploy; point domain.
+
+---
+
+## 11. Summary checklist
+
+- [ ] **Step 0:** Supabase project; `users` table; app uses DB for role; admin UI to toggle user/admin.
 - [ ] Sanity schemas: resourceCollection, resourceSection, resource; categories/settings.
 - [ ] S3 bucket + IAM; path convention; CORS if needed.
 - [ ] Next.js app: layout (sidebar, top bar), home (welcome + carousels), collection page (sections, resource cards).

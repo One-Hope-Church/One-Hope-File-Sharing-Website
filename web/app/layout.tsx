@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { getSession } from "@/lib/session";
+import { getSectionsForSidebar, getAllCollections } from "@/lib/sanity";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 
@@ -17,11 +18,20 @@ export default async function RootLayout({
   const session = await getSession();
   const showUpload = session.user?.role === "admin";
 
+  const [sections, collections] = await Promise.all([
+    getSectionsForSidebar(),
+    getAllCollections(),
+  ]);
+  const defaultCollectionSlug =
+    Array.isArray(collections) && collections.length > 0 && collections[0]?.slug
+      ? String(collections[0].slug)
+      : undefined;
+
   return (
     <html lang="en">
       <body className="min-h-screen bg-white font-sans text-onehope-black antialiased">
         <div className="flex min-h-screen">
-          <Sidebar />
+          <Sidebar sections={sections} defaultCollectionSlug={defaultCollectionSlug} />
           <div className="flex flex-1 flex-col pl-[280px]">
             <TopBar user={session.user} showUpload={showUpload} />
             <main className="flex-1 overflow-auto">{children}</main>

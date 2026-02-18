@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { supabaseAuthClient, isSupabaseAuthConfigured } from "@/lib/supabase-auth-client";
 
 export default function VerifyPage() {
   const router = useRouter();
@@ -16,16 +17,34 @@ export default function VerifyPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (!isSupabaseAuthConfigured() || !supabaseAuthClient) {
+      setError("Sign-in is not configured.");
+      return;
+    }
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/verify-otp", {
+      const { data, error: sbError } = await supabaseAuthClient.auth.verifyOtp({
+        email: email.trim(),
+        token: code.trim(),
+        type: "email",
+      });
+      if (sbError) {
+        setError(sbError.message || "Invalid or expired code");
+        return;
+      }
+      const accessToken = data?.session?.access_token;
+      if (!accessToken) {
+        setError("Could not complete sign in");
+        return;
+      }
+      const res = await fetch("/api/auth/supabase-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ access_token: accessToken }),
       });
-      const data = await res.json();
+      const sessionData = await res.json();
       if (!res.ok) {
-        setError(data.error || "Invalid or expired code");
+        setError(sessionData.error || "Could not complete sign in");
         return;
       }
       router.push(callbackUrl);

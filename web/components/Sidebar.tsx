@@ -3,19 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const nav = [
-  { href: "/", label: "Home", icon: "⌂" },
-  { href: "/myresources", label: "My Resources", icon: "▦" },
-];
-
 const footerLinks = [
   { href: "https://onehopechurch.com", label: "About", icon: "ℹ" },
   { href: "https://onehopechurch.com/contact", label: "Contact", icon: "✉" },
   { href: "https://onehopechurch.com/privacy", label: "Privacy", icon: "📄" },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  sections: Array<{ _id: string; title: string }>;
+  defaultCollectionSlug?: string;
+}
+
+export default function Sidebar({ sections = [], defaultCollectionSlug }: SidebarProps) {
   const pathname = usePathname();
+
+  const nav = [
+    { href: "/", label: "Home", icon: "⌂" },
+    { href: "/myresources", label: "My Resources", icon: "▦" },
+  ];
 
   return (
     <aside className="fixed left-0 top-0 z-30 flex h-full w-[280px] flex-col bg-sidebar text-sidebar-text">
@@ -43,6 +48,26 @@ export default function Sidebar() {
               </Link>
             );
           })}
+          {sections.length > 0 && (
+            <>
+              <div className="my-2 border-t border-white/10" />
+              {sections.map((sec) => {
+                const href = defaultCollectionSlug
+                  ? `/collection/${defaultCollectionSlug}#section-${sec._id}`
+                  : "#";
+                return (
+                  <Link
+                    key={sec._id}
+                    href={href}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-[16px] transition-colors hover:bg-sidebar-hover hover:text-white"
+                  >
+                    <span className="text-xl" aria-hidden>▦</span>
+                    {sec.title || "Untitled section"}
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </nav>
         <div className="mt-auto border-t border-white/10 pt-4">
           {footerLinks.map(({ href, label, icon }) => (
