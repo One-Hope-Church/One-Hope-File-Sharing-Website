@@ -13,23 +13,41 @@ const FILE_TYPES = [
 
 type UploadMode = "single" | "group";
 
+/** Suggest file type from file extension so PDFs/videos show correct icon. */
+function suggestFileType(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  if (["pdf"].includes(ext)) return "pdf";
+  if (["mp4", "mov", "webm", "m4v", "avi", "mkv"].includes(ext)) return "video";
+  if (["jpg", "jpeg", "png", "gif", "webp", "heic"].includes(ext)) return "image";
+  return "";
+}
+
 function fileNameWithoutExt(name: string): string {
   const i = name.lastIndexOf(".");
   return i > 0 ? name.slice(0, i) : name;
 }
 
-export default function AdminForm() {
+const COVER_SIZE_GUIDE = "Square 1:1, 1200×1200 px recommended (min 800×800). JPEG, PNG, or WebP, max 5 MB.";
+
+type CollectionOption = { _id: string; title: string; slug?: string | null };
+
+export default function AdminForm({
+  collections = [],
+}: {
+  collections?: CollectionOption[];
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<UploadMode>("single");
   const [sections, setSections] = useState<Array<{ _id: string; title: string }>>([]);
   const [file, setFile] = useState<File | null>(null);
-  const [files, setFiles] = useState<File[]>([]);
+  const [fileType, setFileType] = useState("");
+  const [fileEntries, setFileEntries] = useState<Array<{ file: File; fileType: string }>>([]);
   const [title, setTitle] = useState("");
   const [groupTitle, setGroupTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [fileType, setFileType] = useState("");
   const collectionId = "uploads"; // default S3 path: collections/uploads/
   const [sectionId, setSectionId] = useState("");
+  const [coverImage, setCoverImage] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
@@ -107,10 +125,10 @@ export default function AdminForm() {
   async function uploadGroup(e: React.FormEvent) {
     e.preventDefault();
     if (!groupTitle.trim() || !sectionId) {
-      setMessage({ type: "err", text: "Group title and section are required" });
+      setMessage({ type: "err", text: "Collection title and section are required" });
       return;
     }
-    if (files.length === 0) {
+    if (fileEntries.length === 0) {
       setMessage({ type: "err", text: "Choose at least one file" });
       return;
     }
@@ -118,8 +136,8 @@ export default function AdminForm() {
     setLoading(true);
     const resourceIds: string[] = [];
     try {
-      for (let i = 0; i < files.length; i++) {
-        const f = files[i];
+      for (let i = 0; i < fileEntries.length; i++) {
+        const { file: f, fileType: ft } = fileEntries[i];
         const presignRes = await fetch("/api/upload/presign", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -146,7 +164,7 @@ export default function AdminForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: fileNameWithoutExt(f.name) || `Item ${i + 1}`,
-            fileType: fileType || undefined,
+            fileType: ft || undefined,
             s3Key: key,
             sectionId,
           }),
@@ -159,7 +177,7 @@ export default function AdminForm() {
         if (data.resourceId) resourceIds.push(data.resourceId);
       }
 
-      const groupRes = await fetch("/api/admin/resources/group", {
+      const collectionRes = await fetch("/api/admin/collections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -168,18 +186,34 @@ export default function AdminForm() {
           resourceIds,
         }),
       });
-      if (!groupRes.ok) {
-        const data = await groupRes.json();
-        throw new Error(data.error || "Resources created but failed to create group");
+      if (!collectionRes.ok) {
+        const data = await collectionRes.json();
+        throw new Error(data.error || "Resources created but failed to create the collection");
+      }
+      const collectionData = await collectionRes.json();
+      const newCollectionId = collectionData.collectionId;
+
+      let successText = `Collection "${groupTitle.trim()}" created with ${fileEntries.length} resource(s).`;
+      if (coverImage && newCollectionId) {
+        const coverForm = new FormData();
+        coverForm.set("collectionId", newCollectionId);
+        coverForm.set("image", coverImage);
+        const coverRes = await fetch("/api/admin/collection-cover", {
+          method: "POST",
+          body: coverForm,
+        });
+        if (coverRes.ok) {
+          successText += " Cover photo set.";
+        } else {
+          const coverData = await coverRes.json();
+          successText += ` (Cover upload failed: ${coverData.error ?? "unknown"})`;
+        }
       }
 
-      setMessage({
-        type: "ok",
-        text: `${files.length} file(s) uploaded and grouped as "${groupTitle.trim()}" in the section.`,
-      });
+      setMessage({ type: "ok", text: successText });
       setGroupTitle("");
-      setFiles([]);
-      setFileType("");
+      setFileEntries([]);
+      setCoverImage(null);
     } catch (err) {
       setMessage({
         type: "err",
@@ -213,7 +247,7 @@ export default function AdminForm() {
             onChange={() => setMode("group")}
             className="text-primary"
           />
-          <span>Group of resources</span>
+          <span>New collection (multiple resources)</span>
         </label>
       </div>
 
@@ -267,16 +301,39 @@ export default function AdminForm() {
               </label>
               <input
                 type="file"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setFile(f);
+                  setFileType(f ? suggestFileType(f.name) : "");
+                }}
                 className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 file:mr-4 file:rounded file:border-0 file:bg-primary file:px-4 file:py-2 file:text-white file:hover:bg-primary-dark"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-onehope-black">
+                File type for this resource
+              </label>
+              <select
+                value={fileType}
+                onChange={(e) => setFileType(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                {FILE_TYPES.map((opt) => (
+                  <option key={opt.value || "none"} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-sm text-gray-500">
+                Choose PDF, Video, or Image so it displays with the right icon on the site.
+              </p>
             </div>
           </>
         ) : (
           <>
             <div>
               <label className="block text-sm font-medium text-onehope-black">
-                Group title <span className="text-red-600">*</span>
+                Collection title <span className="text-red-600">*</span>
               </label>
               <input
                 type="text"
@@ -286,12 +343,12 @@ export default function AdminForm() {
                 className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <p className="mt-1 text-sm text-gray-500">
-                This group will appear under the section with this title; all selected files become resources in the group.
+                A new collection will be created with this title. All selected files become resources in the collection.
               </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-onehope-black">
-                Section <span className="text-red-600">*</span>
+                Parent section <span className="text-red-600">*</span>
               </label>
               <select
                 value={sectionId}
@@ -306,6 +363,9 @@ export default function AdminForm() {
                   </option>
                 ))}
               </select>
+              <p className="mt-1 text-sm text-gray-500">
+                The collection will appear under this section in the sidebar.
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-onehope-black">
@@ -314,32 +374,67 @@ export default function AdminForm() {
               <input
                 type="file"
                 multiple
-                onChange={(e) => setFiles(Array.from(e.target.files || []))}
+                onChange={(e) => {
+                  const selected = Array.from(e.target.files || []);
+                  setFileEntries(
+                    selected.map((f) => ({ file: f, fileType: suggestFileType(f.name) }))
+                  );
+                }}
                 className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 file:mr-4 file:rounded file:border-0 file:bg-primary file:px-4 file:py-2 file:text-white file:hover:bg-primary-dark"
               />
-              {files.length > 0 && (
-                <p className="mt-1 text-sm text-gray-500">{files.length} file(s) selected. Each will be a resource in the group.</p>
+              {fileEntries.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-sm font-medium text-onehope-black">
+                    Set file type for each item (so PDFs and videos show the right icon):
+                  </p>
+                  {fileEntries.map((entry, i) => (
+                    <div
+                      key={`${i}-${entry.file.name}`}
+                      className="flex flex-wrap items-center gap-2 rounded-lg border border-onehope-gray bg-onehope-info/20 p-2"
+                    >
+                      <span className="min-w-0 truncate text-sm font-medium text-onehope-black">
+                        {entry.file.name}
+                      </span>
+                      <select
+                        value={entry.fileType}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setFileEntries((prev) =>
+                            prev.map((p, j) => (j === i ? { ...p, fileType: v } : p))
+                          );
+                        }}
+                        className="rounded border border-onehope-gray bg-white px-2 py-1 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {FILE_TYPES.filter((o) => o.value !== "").map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="rounded-lg border border-onehope-gray bg-onehope-info/10 p-4">
+              <h3 className="text-sm font-semibold text-onehope-black">
+                Optional: set cover photo for this collection
+              </h3>
+              <p className="mt-1 text-sm text-gray-600">{COVER_SIZE_GUIDE}</p>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => setCoverImage(e.target.files?.[0] ?? null)}
+                className="mt-2 w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:hover:bg-primary-dark"
+              />
+              {coverImage && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Cover: {coverImage.name}
+                </p>
               )}
             </div>
           </>
         )}
-
-        <div>
-          <label className="block text-sm font-medium text-onehope-black">
-            File type
-          </label>
-          <select
-            value={fileType}
-            onChange={(e) => setFileType(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {FILE_TYPES.map((opt) => (
-              <option key={opt.value || "none"} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
         {message && (
           <p className={message.type === "ok" ? "text-green-700" : "text-red-600"}>
             {message.text}
@@ -350,17 +445,17 @@ export default function AdminForm() {
           disabled={
             loading ||
             (mode === "single" && (!file || !title.trim())) ||
-            (mode === "group" && (!groupTitle.trim() || !sectionId || files.length === 0))
+            (mode === "group" && (!groupTitle.trim() || !sectionId || fileEntries.length === 0))
           }
           className="w-full rounded-lg bg-primary py-2 font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
         >
           {loading
             ? mode === "single"
               ? "Uploading & creating resource…"
-              : "Uploading group…"
+              : "Creating collection…"
             : mode === "single"
               ? "Upload & add to Sanity"
-              : "Upload group & add to section"}
+              : "Create collection"}
         </button>
       </form>
       <p className="mt-6">

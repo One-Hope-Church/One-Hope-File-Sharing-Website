@@ -22,6 +22,12 @@ export default async function AdminLayout({
           Upload
         </Link>
         <Link
+          href="/admin/collection-cover"
+          className="font-medium text-onehope-black hover:text-primary"
+        >
+          Collection cover
+        </Link>
+        <Link
           href="/admin/users"
           className="font-medium text-onehope-black hover:text-primary"
         >

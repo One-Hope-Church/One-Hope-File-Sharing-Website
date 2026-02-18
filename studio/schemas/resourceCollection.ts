@@ -29,8 +29,10 @@ export const resourceCollection = defineType({
     }),
     defineField({
       name: "heroImage",
-      title: "Hero image",
+      title: "Hero / cover image",
       type: "image",
+      description:
+        "Square (1:1) works best. Recommended: 1200×1200 px. Minimum 800×800 px. JPEG, PNG, or WebP.",
       options: {
         hotspot: true,
       },
@@ -43,17 +45,18 @@ export const resourceCollection = defineType({
       initialValue: false,
     }),
     defineField({
-      name: "category",
-      title: "Category",
-      type: "string",
-      description: "e.g. Kids, Worship, Message Series (for sidebar/filter)",
+      name: "section",
+      title: "Parent section",
+      type: "reference",
+      to: [{ type: "resourceSection" }],
+      description: "Section in the sidebar under which this collection appears (hierarchy: Sections → Collections).",
     }),
     defineField({
-      name: "sections",
-      title: "Sections",
+      name: "resources",
+      title: "Resources",
       type: "array",
-      of: [{ type: "reference", to: [{ type: "resourceSection" }] }],
-      description: "Sections that contain resources (e.g. Video Content, PDFs)",
+      of: [{ type: "reference", to: [{ type: "resource" }] }],
+      description: "Resources in this collection. Shown in upload date order (newest first).",
     }),
     defineField({
       name: "relatedCollections",
@@ -62,16 +65,9 @@ export const resourceCollection = defineType({
       of: [{ type: "reference", to: [{ type: "resourceCollection" }] }],
       description: "Optional: show at bottom of collection page",
     }),
-    defineField({
-      name: "order",
-      title: "Order",
-      type: "number",
-      description: "Order for featured / listing (lower = first)",
-      initialValue: 0,
-    }),
   ],
   orderings: [
-    { title: "Order", name: "orderAsc", by: [{ field: "order", direction: "asc" }] },
+    { title: "Newest first", name: "createdDesc", by: [{ field: "_createdAt", direction: "desc" }] },
     { title: "Title", name: "titleAsc", by: [{ field: "title", direction: "asc" }] },
   ],
   preview: {

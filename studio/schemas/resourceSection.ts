@@ -4,13 +4,21 @@ export const resourceSection = defineType({
   name: "resourceSection",
   title: "Resource section",
   type: "document",
-  description: "Resources appear in this section when you set 'Section' on the Resource (or choose this section when uploading). No need to add them here manually.",
+  description: "Top-level section in the sidebar (e.g. Prayer, Message Series). Each section can contain collections and resources.",
   fields: [
     defineField({
       name: "title",
       title: "Title",
       type: "string",
-      description: "e.g. Video Content, Service Flows, Small Group Guides",
+      description: "e.g. Prayer, Message Series, Students",
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: "slug",
+      title: "Slug",
+      type: "slug",
+      description: "URL slug for this section (e.g. prayer → /section/prayer)",
+      options: { source: "title", maxLength: 96 },
       validation: (Rule) => Rule.required(),
     }),
     defineField({
@@ -25,10 +33,11 @@ export const resourceSection = defineType({
     { title: "Order", name: "orderAsc", by: [{ field: "order", direction: "asc" }] },
   ],
   preview: {
-    select: { title: "title" },
-    prepare({ title }) {
+    select: { title: "title", slug: "slug.current" },
+    prepare({ title, slug }) {
       return {
         title: title || "Untitled section",
+        subtitle: slug ? `/${slug}` : undefined,
       };
     },
   },
