@@ -13,6 +13,8 @@ interface CollectionCardProps {
   slug?: string;
   isSaved?: boolean;
   showSaveButton?: boolean;
+  /** Horizontal layout: icon left, title+description right on desktop; stacked on mobile. No title under icon. */
+  layout?: "default" | "horizontal";
 }
 
 export default function CollectionCard({
@@ -23,6 +25,7 @@ export default function CollectionCard({
   slug,
   isSaved = false,
   showSaveButton = true,
+  layout = "default",
 }: CollectionCardProps) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(isSaved);
@@ -61,6 +64,52 @@ export default function CollectionCard({
     } finally {
       setSaving(false);
     }
+  }
+
+  if (layout === "horizontal") {
+    return (
+      <Link
+        href={href}
+        className="group flex flex-col overflow-hidden rounded-xl border border-onehope-gray bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:flex-row"
+      >
+        <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-onehope-gray sm:aspect-square sm:w-48 sm:max-w-[200px]">
+          {heroImage ? (
+            <Image
+              src={heroImage}
+              alt=""
+              fill
+              className="object-cover transition-transform group-hover:scale-105"
+              sizes="(max-width: 640px) 100vw, 200px"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-4xl text-onehope-black/30">
+              ▦
+            </div>
+          )}
+          {showSaveButton && (
+            <button
+              type="button"
+              onClick={handleSaveToggle}
+              disabled={saving}
+              className="absolute right-2 top-2 rounded-lg border border-white/80 bg-black/40 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm hover:bg-black/60 disabled:opacity-50"
+              title={saved ? "Remove from My Resources" : "Save to My Resources"}
+            >
+              {saved ? "✓ Saved" : "Save"}
+            </button>
+          )}
+        </div>
+        <div className="flex flex-1 flex-col justify-center p-4">
+          <h3 className="font-bold text-onehope-black group-hover:text-primary">
+            {title}
+          </h3>
+          {description && (
+            <p className="mt-1 line-clamp-4 text-sm text-gray-600 sm:line-clamp-5">
+              {description}
+            </p>
+          )}
+        </div>
+      </Link>
+    );
   }
 
   return (

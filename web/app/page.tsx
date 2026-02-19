@@ -47,7 +47,7 @@ export default async function HomePage() {
           Featured Resources
         </h2>
         {Array.isArray(featuredCollections) && featuredCollections.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-4">
             {featuredCollections.map((c: Record<string, unknown>) => (
               <CollectionCard
                 key={String(c._id)}
@@ -57,6 +57,7 @@ export default async function HomePage() {
                 heroImage={c.heroImage ? String(c.heroImage) : null}
                 slug={c.slug ? String(c.slug) : undefined}
                 isSaved={savedIds.includes(String(c._id))}
+                layout="horizontal"
               />
             ))}
           </div>
