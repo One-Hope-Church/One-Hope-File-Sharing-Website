@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const US_STATES = [
   { value: "", label: "Select state" },
@@ -57,6 +57,208 @@ const US_STATES = [
   { value: "DC", label: "District of Columbia" },
 ];
 
+const COUNTRIES: { value: string; label: string }[] = [
+  { value: "US", label: "United States" },
+  { value: "AF", label: "Afghanistan" },
+  { value: "AL", label: "Albania" },
+  { value: "DZ", label: "Algeria" },
+  { value: "AD", label: "Andorra" },
+  { value: "AO", label: "Angola" },
+  { value: "AG", label: "Antigua and Barbuda" },
+  { value: "AR", label: "Argentina" },
+  { value: "AM", label: "Armenia" },
+  { value: "AU", label: "Australia" },
+  { value: "AT", label: "Austria" },
+  { value: "AZ", label: "Azerbaijan" },
+  { value: "BS", label: "Bahamas" },
+  { value: "BH", label: "Bahrain" },
+  { value: "BD", label: "Bangladesh" },
+  { value: "BB", label: "Barbados" },
+  { value: "BY", label: "Belarus" },
+  { value: "BE", label: "Belgium" },
+  { value: "BZ", label: "Belize" },
+  { value: "BJ", label: "Benin" },
+  { value: "BT", label: "Bhutan" },
+  { value: "BO", label: "Bolivia" },
+  { value: "BA", label: "Bosnia and Herzegovina" },
+  { value: "BW", label: "Botswana" },
+  { value: "BR", label: "Brazil" },
+  { value: "BN", label: "Brunei" },
+  { value: "BG", label: "Bulgaria" },
+  { value: "BF", label: "Burkina Faso" },
+  { value: "BI", label: "Burundi" },
+  { value: "CV", label: "Cabo Verde" },
+  { value: "KH", label: "Cambodia" },
+  { value: "CM", label: "Cameroon" },
+  { value: "CA", label: "Canada" },
+  { value: "CF", label: "Central African Republic" },
+  { value: "TD", label: "Chad" },
+  { value: "CL", label: "Chile" },
+  { value: "CN", label: "China" },
+  { value: "CO", label: "Colombia" },
+  { value: "KM", label: "Comoros" },
+  { value: "CG", label: "Congo" },
+  { value: "CD", label: "Congo (Democratic Republic)" },
+  { value: "CR", label: "Costa Rica" },
+  { value: "HR", label: "Croatia" },
+  { value: "CU", label: "Cuba" },
+  { value: "CY", label: "Cyprus" },
+  { value: "CZ", label: "Czech Republic" },
+  { value: "DK", label: "Denmark" },
+  { value: "DJ", label: "Djibouti" },
+  { value: "DM", label: "Dominica" },
+  { value: "DO", label: "Dominican Republic" },
+  { value: "EC", label: "Ecuador" },
+  { value: "EG", label: "Egypt" },
+  { value: "SV", label: "El Salvador" },
+  { value: "GQ", label: "Equatorial Guinea" },
+  { value: "ER", label: "Eritrea" },
+  { value: "EE", label: "Estonia" },
+  { value: "SZ", label: "Eswatini" },
+  { value: "ET", label: "Ethiopia" },
+  { value: "FJ", label: "Fiji" },
+  { value: "FI", label: "Finland" },
+  { value: "FR", label: "France" },
+  { value: "GA", label: "Gabon" },
+  { value: "GM", label: "Gambia" },
+  { value: "GE", label: "Georgia" },
+  { value: "DE", label: "Germany" },
+  { value: "GH", label: "Ghana" },
+  { value: "GR", label: "Greece" },
+  { value: "GD", label: "Grenada" },
+  { value: "GT", label: "Guatemala" },
+  { value: "GN", label: "Guinea" },
+  { value: "GW", label: "Guinea-Bissau" },
+  { value: "GY", label: "Guyana" },
+  { value: "HT", label: "Haiti" },
+  { value: "HN", label: "Honduras" },
+  { value: "HK", label: "Hong Kong" },
+  { value: "HU", label: "Hungary" },
+  { value: "IS", label: "Iceland" },
+  { value: "IN", label: "India" },
+  { value: "ID", label: "Indonesia" },
+  { value: "IR", label: "Iran" },
+  { value: "IQ", label: "Iraq" },
+  { value: "IE", label: "Ireland" },
+  { value: "IL", label: "Israel" },
+  { value: "IT", label: "Italy" },
+  { value: "JM", label: "Jamaica" },
+  { value: "JP", label: "Japan" },
+  { value: "JO", label: "Jordan" },
+  { value: "KZ", label: "Kazakhstan" },
+  { value: "KE", label: "Kenya" },
+  { value: "KI", label: "Kiribati" },
+  { value: "KP", label: "North Korea" },
+  { value: "KR", label: "South Korea" },
+  { value: "KW", label: "Kuwait" },
+  { value: "KG", label: "Kyrgyzstan" },
+  { value: "LA", label: "Laos" },
+  { value: "LV", label: "Latvia" },
+  { value: "LB", label: "Lebanon" },
+  { value: "LS", label: "Lesotho" },
+  { value: "LR", label: "Liberia" },
+  { value: "LY", label: "Libya" },
+  { value: "LI", label: "Liechtenstein" },
+  { value: "LT", label: "Lithuania" },
+  { value: "LU", label: "Luxembourg" },
+  { value: "MO", label: "Macau" },
+  { value: "MG", label: "Madagascar" },
+  { value: "MW", label: "Malawi" },
+  { value: "MY", label: "Malaysia" },
+  { value: "MV", label: "Maldives" },
+  { value: "ML", label: "Mali" },
+  { value: "MT", label: "Malta" },
+  { value: "MH", label: "Marshall Islands" },
+  { value: "MR", label: "Mauritania" },
+  { value: "MU", label: "Mauritius" },
+  { value: "MX", label: "Mexico" },
+  { value: "FM", label: "Micronesia" },
+  { value: "MD", label: "Moldova" },
+  { value: "MC", label: "Monaco" },
+  { value: "MN", label: "Mongolia" },
+  { value: "ME", label: "Montenegro" },
+  { value: "MA", label: "Morocco" },
+  { value: "MZ", label: "Mozambique" },
+  { value: "MM", label: "Myanmar" },
+  { value: "NA", label: "Namibia" },
+  { value: "NR", label: "Nauru" },
+  { value: "NP", label: "Nepal" },
+  { value: "NL", label: "Netherlands" },
+  { value: "NZ", label: "New Zealand" },
+  { value: "NI", label: "Nicaragua" },
+  { value: "NE", label: "Niger" },
+  { value: "NG", label: "Nigeria" },
+  { value: "MK", label: "North Macedonia" },
+  { value: "NO", label: "Norway" },
+  { value: "OM", label: "Oman" },
+  { value: "PK", label: "Pakistan" },
+  { value: "PW", label: "Palau" },
+  { value: "PS", label: "Palestine" },
+  { value: "PA", label: "Panama" },
+  { value: "PG", label: "Papua New Guinea" },
+  { value: "PY", label: "Paraguay" },
+  { value: "PE", label: "Peru" },
+  { value: "PH", label: "Philippines" },
+  { value: "PL", label: "Poland" },
+  { value: "PT", label: "Portugal" },
+  { value: "PR", label: "Puerto Rico" },
+  { value: "QA", label: "Qatar" },
+  { value: "RO", label: "Romania" },
+  { value: "RU", label: "Russia" },
+  { value: "RW", label: "Rwanda" },
+  { value: "KN", label: "Saint Kitts and Nevis" },
+  { value: "LC", label: "Saint Lucia" },
+  { value: "VC", label: "Saint Vincent and the Grenadines" },
+  { value: "WS", label: "Samoa" },
+  { value: "SM", label: "San Marino" },
+  { value: "ST", label: "Sao Tome and Principe" },
+  { value: "SA", label: "Saudi Arabia" },
+  { value: "SN", label: "Senegal" },
+  { value: "RS", label: "Serbia" },
+  { value: "SC", label: "Seychelles" },
+  { value: "SL", label: "Sierra Leone" },
+  { value: "SG", label: "Singapore" },
+  { value: "SK", label: "Slovakia" },
+  { value: "SI", label: "Slovenia" },
+  { value: "SB", label: "Solomon Islands" },
+  { value: "SO", label: "Somalia" },
+  { value: "ZA", label: "South Africa" },
+  { value: "SS", label: "South Sudan" },
+  { value: "ES", label: "Spain" },
+  { value: "LK", label: "Sri Lanka" },
+  { value: "SD", label: "Sudan" },
+  { value: "SR", label: "Suriname" },
+  { value: "SE", label: "Sweden" },
+  { value: "CH", label: "Switzerland" },
+  { value: "SY", label: "Syria" },
+  { value: "TW", label: "Taiwan" },
+  { value: "TJ", label: "Tajikistan" },
+  { value: "TZ", label: "Tanzania" },
+  { value: "TH", label: "Thailand" },
+  { value: "TL", label: "Timor-Leste" },
+  { value: "TG", label: "Togo" },
+  { value: "TO", label: "Tonga" },
+  { value: "TT", label: "Trinidad and Tobago" },
+  { value: "TN", label: "Tunisia" },
+  { value: "TR", label: "Turkey" },
+  { value: "TM", label: "Turkmenistan" },
+  { value: "TV", label: "Tuvalu" },
+  { value: "UG", label: "Uganda" },
+  { value: "UA", label: "Ukraine" },
+  { value: "AE", label: "United Arab Emirates" },
+  { value: "GB", label: "United Kingdom" },
+  { value: "UY", label: "Uruguay" },
+  { value: "UZ", label: "Uzbekistan" },
+  { value: "VU", label: "Vanuatu" },
+  { value: "VA", label: "Vatican City" },
+  { value: "VE", label: "Venezuela" },
+  { value: "VN", label: "Vietnam" },
+  { value: "YE", label: "Yemen" },
+  { value: "ZM", label: "Zambia" },
+  { value: "ZW", label: "Zimbabwe" },
+  { value: "OTHER", label: "Other" },
+];
+
 function formatPhone(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 10);
   if (digits.length <= 3) return digits.replace(/(\d{0,3})/, "($1");
@@ -81,7 +283,11 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
     church_title: "",
     church_city: "",
     church_state: "",
+    country: "US",
   });
+  const [countryOpen, setCountryOpen] = useState(false);
+  const [countryQuery, setCountryQuery] = useState("");
+  const countryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -94,6 +300,18 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
   }, [visible]);
 
   useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (countryRef.current && !countryRef.current.contains(e.target as Node)) {
+        setCountryOpen(false);
+      }
+    }
+    if (countryOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [countryOpen]);
+
+  useEffect(() => {
     let mounted = true;
     const timer = setTimeout(async () => {
       try {
@@ -101,6 +319,11 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
         const data = await res.json().catch(() => ({}));
         if (mounted && !data.complete && data.profile) {
           const rawPhone = (data.profile.phone ?? "").toString();
+          const state = (data.profile.church_state ?? "").toString().trim();
+          const rawCountry = (data.profile as { country?: string }).country ?? "";
+          const hasCountry = rawCountry.trim().length > 0;
+          const looksLikeUSState = state.length === 2 && US_STATES.some((s) => s.value === state);
+          const country = hasCountry ? rawCountry.trim() : looksLikeUSState ? "US" : "US";
           setForm({
             first_name: data.profile.first_name ?? "",
             last_name: data.profile.last_name ?? "",
@@ -108,7 +331,8 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
             church_name: data.profile.church_name ?? "",
             church_title: data.profile.church_title ?? "",
             church_city: data.profile.church_city ?? "",
-            church_state: data.profile.church_state ?? "",
+            church_state: state,
+            country,
           });
         }
         if (mounted && !data.complete) {
@@ -232,6 +456,61 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
               className="mt-1 w-full rounded-lg border border-onehope-gray px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
+          <div ref={countryRef} className="relative">
+            <ReqLabel id="country">Country</ReqLabel>
+            <input
+              id="country"
+              type="text"
+              autoComplete="off"
+              value={countryOpen ? countryQuery : COUNTRIES.find((c) => c.value === form.country)?.label ?? form.country}
+              onChange={(e) => {
+                setCountryQuery(e.target.value);
+                setCountryOpen(true);
+              }}
+              onFocus={() => {
+                setCountryQuery("");
+                setCountryOpen(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setCountryOpen(false);
+                  setCountryQuery("");
+                }
+              }}
+              required
+              className="mt-1 w-full rounded-lg border border-onehope-gray px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            {countryOpen && (
+              <ul
+                className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-onehope-gray bg-white py-1 shadow-lg"
+                role="listbox"
+              >
+                {COUNTRIES.filter((c) =>
+                  c.label.toLowerCase().includes(countryQuery.toLowerCase())
+                ).map((c) => (
+                  <li
+                    key={c.value}
+                    role="option"
+                    aria-selected={form.country === c.value}
+                    onClick={() => {
+                      setForm((f) => ({ ...f, country: c.value, church_state: "" }));
+                      setCountryOpen(false);
+                      setCountryQuery("");
+                    }}
+                    className="cursor-pointer px-3 py-2 text-onehope-black hover:bg-onehope-info/50 data-[selected]:bg-onehope-info/30"
+                    data-selected={form.country === c.value ? "" : undefined}
+                  >
+                    {c.label}
+                  </li>
+                ))}
+                {COUNTRIES.filter((c) =>
+                  c.label.toLowerCase().includes(countryQuery.toLowerCase())
+                ).length === 0 && (
+                  <li className="px-3 py-2 text-gray-500">No matching country</li>
+                )}
+              </ul>
+            )}
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <ReqLabel id="church_city">Church City</ReqLabel>
@@ -245,20 +524,37 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
               />
             </div>
             <div>
-              <ReqLabel id="church_state">Church State</ReqLabel>
-              <select
-                id="church_state"
-                value={form.church_state}
-                onChange={(e) => setForm((f) => ({ ...f, church_state: e.target.value }))}
-                required
-                className="mt-1 w-full rounded-lg border border-onehope-gray px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {US_STATES.map((s) => (
-                  <option key={s.value || "empty"} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
+              {form.country === "US" ? (
+                <>
+                  <ReqLabel id="church_state">Church State</ReqLabel>
+                  <select
+                    id="church_state"
+                    value={form.church_state}
+                    onChange={(e) => setForm((f) => ({ ...f, church_state: e.target.value }))}
+                    required
+                    className="mt-1 w-full rounded-lg border border-onehope-gray px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    {US_STATES.map((s) => (
+                      <option key={s.value || "empty"} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <>
+                  <ReqLabel id="church_state">State / Province / Region</ReqLabel>
+                  <input
+                    id="church_state"
+                    type="text"
+                    value={form.church_state}
+                    onChange={(e) => setForm((f) => ({ ...f, church_state: e.target.value }))}
+                    placeholder="e.g. Ontario, England, Queensland"
+                    required
+                    className="mt-1 w-full rounded-lg border border-onehope-gray px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </>
+              )}
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">

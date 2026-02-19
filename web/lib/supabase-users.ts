@@ -96,23 +96,31 @@ export interface UserProfile {
   last_name: string | null;
   phone: string | null;
   church_name: string | null;
+  church_title: string | null;
   church_city: string | null;
   church_state: string | null;
+  country: string | null;
 }
 
-/** Profile is complete if first and last name are set. */
+/** Profile is complete when all required fields are set. */
 export function isProfileComplete(p: UserProfile | null): boolean {
   if (!p) return false;
   const fn = (p.first_name ?? "").trim();
   const ln = (p.last_name ?? "").trim();
-  return fn.length > 0 && ln.length > 0;
+  const phone = (p.phone ?? "").replace(/\D/g, "").trim();
+  const church = (p.church_name ?? "").trim();
+  const title = (p.church_title ?? "").trim();
+  const city = (p.church_city ?? "").trim();
+  const state = (p.church_state ?? "").trim();
+  const country = (p.country ?? "").trim();
+  return fn.length > 0 && ln.length > 0 && phone.length >= 10 && church.length > 0 && title.length > 0 && city.length > 0 && state.length > 0 && country.length > 0;
 }
 
 export async function getUserProfile(email: string): Promise<UserProfile | null> {
   if (!supabaseAdmin || !isSupabaseConfigured()) return null;
   const { data } = await supabaseAdmin
     .from("users")
-    .select("first_name, last_name, phone, church_name, church_city, church_state")
+    .select("first_name, last_name, phone, church_name, church_title, church_city, church_state, country")
     .eq("email", email.trim().toLowerCase())
     .single();
   if (!data) return null;
@@ -129,8 +137,10 @@ export async function updateUserProfile(
   if (profile.last_name !== undefined) payload.last_name = profile.last_name?.trim() || null;
   if (profile.phone !== undefined) payload.phone = profile.phone?.trim() || null;
   if (profile.church_name !== undefined) payload.church_name = profile.church_name?.trim() || null;
+  if (profile.church_title !== undefined) payload.church_title = profile.church_title?.trim() || null;
   if (profile.church_city !== undefined) payload.church_city = profile.church_city?.trim() || null;
   if (profile.church_state !== undefined) payload.church_state = profile.church_state?.trim() || null;
+  if (profile.country !== undefined) payload.country = profile.country?.trim() || null;
   if (Object.keys(payload).length === 0) return true;
   payload.updated_at = new Date().toISOString();
   const { error } = await supabaseAdmin

@@ -26,6 +26,7 @@ export const resource = defineType({
           { title: "PDF", value: "pdf" },
           { title: "Video", value: "video" },
           { title: "Image", value: "image" },
+          { title: "ZIP", value: "zip" },
           { title: "Other", value: "other" },
         ],
         layout: "dropdown",
