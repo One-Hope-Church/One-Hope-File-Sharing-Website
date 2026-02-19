@@ -1,24 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
 
 interface TopBarProps {
-  user?: { email: string; role: string } | null;
-  showUpload?: boolean;
+  userDisplay?: string | null;
   onMenuClick?: () => void;
 }
 
-export default function TopBar({ user, showUpload, onMenuClick }: TopBarProps) {
+export default function TopBar({ userDisplay, onMenuClick }: TopBarProps) {
   const router = useRouter();
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/signin");
-    router.refresh();
-  }
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -60,37 +52,14 @@ export default function TopBar({ user, showUpload, onMenuClick }: TopBarProps) {
           Search
         </button>
       </form>
-      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-        {showUpload && (
-          <Link
-            href="/admin"
-            className="rounded-lg border-2 border-primary bg-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark sm:px-4"
-          >
-            Upload
-          </Link>
-        )}
-        {user ? (
-          <>
-            <span className="hidden max-w-[120px] truncate text-sm text-onehope-black sm:inline" title={user.email}>
-              {user.email}
-            </span>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-lg border border-onehope-gray bg-white px-3 py-2 text-sm font-medium text-onehope-black hover:bg-onehope-gray sm:px-4"
-            >
-              Sign out
-            </button>
-          </>
-        ) : (
-          <Link
-            href="/signin"
-            className="rounded-lg border-2 border-primary bg-white px-3 py-2 text-sm font-semibold text-primary hover:bg-onehope-info sm:px-4"
-          >
-            Sign in
-          </Link>
-        )}
-      </div>
+      {userDisplay && (
+        <span
+          className="hidden max-w-[180px] truncate text-sm text-onehope-black sm:inline"
+          title={userDisplay}
+        >
+          {userDisplay}
+        </span>
+      )}
     </header>
   );
 }

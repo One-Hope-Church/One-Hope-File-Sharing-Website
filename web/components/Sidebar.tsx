@@ -2,15 +2,25 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 interface SidebarProps {
   sections: Array<{ _id: string; title: string; slug: string }>;
   isOpen?: boolean;
   onClose?: () => void;
+  user?: { email: string; role: string } | null;
+  showUpload?: boolean;
 }
 
-export default function Sidebar({ sections = [], isOpen = false, onClose }: SidebarProps) {
+export default function Sidebar({ sections = [], isOpen = false, onClose, user, showUpload }: SidebarProps) {
+  const router = useRouter();
+
+  async function handleLogout() {
+    onClose?.();
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/signin");
+    router.refresh();
+  }
   const pathname = usePathname();
 
   const nav = [
@@ -89,6 +99,37 @@ export default function Sidebar({ sections = [], isOpen = false, onClose }: Side
             </>
           )}
         </nav>
+        <div className="mt-auto border-t border-white/10 pt-4">
+          {showUpload && (
+            <Link
+              href="/admin"
+              onClick={onClose}
+              className="mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-[16px] transition-colors hover:bg-white/20"
+            >
+              <span className="text-xl" aria-hidden>↑</span>
+              Upload
+            </Link>
+          )}
+          {user ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[16px] transition-colors hover:bg-white/20"
+            >
+              <span className="text-xl" aria-hidden>⎋</span>
+              Sign out
+            </button>
+          ) : (
+            <Link
+              href="/signin"
+              onClick={onClose}
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-[16px] transition-colors hover:bg-white/20"
+            >
+              <span className="text-xl" aria-hidden>→</span>
+              Sign in
+            </Link>
+          )}
+        </div>
       </div>
     </aside>
   );
