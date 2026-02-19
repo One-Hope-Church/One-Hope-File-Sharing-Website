@@ -15,19 +15,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const title =
-    typeof (body as Record<string, unknown>).title === "string"
-      ? (body as Record<string, unknown>).title.trim()
-      : "";
-  const sectionId =
-    typeof (body as Record<string, unknown>).sectionId === "string"
-      ? (body as Record<string, unknown>).sectionId.trim()
-      : "";
+  const b = body as Record<string, unknown>;
+  const title = typeof b.title === "string" ? b.title.trim() : "";
+  const sectionId = typeof b.sectionId === "string" ? b.sectionId.trim() : "";
   const description =
-    typeof (body as Record<string, unknown>).description === "string"
-      ? (body as Record<string, unknown>).description.trim() || undefined
-      : undefined;
-  const collectionResourceIds = (body as Record<string, unknown>).collectionResourceIds;
+    typeof b.description === "string" ? b.description.trim() || undefined : undefined;
+  const collectionResourceIds = b.collectionResourceIds;
   const ids = Array.isArray(collectionResourceIds)
     ? collectionResourceIds.filter((id): id is string => typeof id === "string" && id.length > 0)
     : [];
