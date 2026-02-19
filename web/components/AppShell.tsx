@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
+import ProfileModal from "@/components/ProfileModal";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -38,6 +39,12 @@ export default function AppShell({ children, user, showUpload, sections }: AppSh
         />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
+      {user?.email && (
+        <ProfileModal
+          userEmail={user.email}
+          onComplete={() => {}}
+        />
+      )}
     </div>
   );
 }
