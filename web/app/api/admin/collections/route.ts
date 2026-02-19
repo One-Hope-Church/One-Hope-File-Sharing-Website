@@ -27,9 +27,9 @@ export async function POST(request: NextRequest) {
     typeof (body as Record<string, unknown>).description === "string"
       ? (body as Record<string, unknown>).description.trim() || undefined
       : undefined;
-  const resourceIds = (body as Record<string, unknown>).resourceIds;
-  const ids = Array.isArray(resourceIds)
-    ? resourceIds.filter((id): id is string => typeof id === "string" && id.length > 0)
+  const collectionResourceIds = (body as Record<string, unknown>).collectionResourceIds;
+  const ids = Array.isArray(collectionResourceIds)
+    ? collectionResourceIds.filter((id): id is string => typeof id === "string" && id.length > 0)
     : [];
 
   if (!title || !sectionId) {
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   }
   if (ids.length === 0) {
     return NextResponse.json(
-      { error: "At least one resourceId is required" },
+      { error: "At least one collectionResourceId is required" },
       { status: 400 }
     );
   }
@@ -48,13 +48,13 @@ export async function POST(request: NextRequest) {
   const collectionId = await createResourceCollection({
     title,
     sectionId,
-    resourceIds: ids,
+    collectionResourceIds: ids,
     description,
   });
 
   if (!collectionId) {
     return NextResponse.json(
-      { error: "Failed to create collection (check SANITY_API_TOKEN)" },
+      { error: "Failed to create collection" },
       { status: 500 }
     );
   }

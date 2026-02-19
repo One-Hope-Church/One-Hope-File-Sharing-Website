@@ -46,6 +46,7 @@ export const structure: StructureResolver = async (S, context) => {
         ),
       S.divider(),
       S.documentTypeListItem("resource").title("Resources"),
+      S.documentTypeListItem("collectionResource").title("Collection resources"),
       S.documentTypeListItem("resourceGroup").title("Resource groups"),
     ]);
 };

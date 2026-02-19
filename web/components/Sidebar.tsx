@@ -1,19 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-
-const footerLinks = [
-  { href: "https://onehopechurch.com", label: "About", icon: "ℹ" },
-  { href: "https://onehopechurch.com/contact", label: "Contact", icon: "✉" },
-  { href: "https://onehopechurch.com/privacy", label: "Privacy", icon: "📄" },
-];
 
 interface SidebarProps {
   sections: Array<{ _id: string; title: string; slug: string }>;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export default function Sidebar({ sections = [] }: SidebarProps) {
+export default function Sidebar({ sections = [], isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
 
   const nav = [
@@ -22,12 +19,33 @@ export default function Sidebar({ sections = [] }: SidebarProps) {
   ];
 
   return (
-    <aside className="fixed left-0 top-0 z-30 flex h-full w-[280px] flex-col bg-sidebar text-sidebar-text">
-      <div className="flex flex-1 flex-col p-4">
-        <div className="mb-6">
-          <Link href="/" className="text-lg font-semibold text-white">
-            One Hope Resources
+    <aside
+      className={`fixed left-0 top-0 z-30 flex h-full w-[280px] max-w-[85vw] flex-col text-white transition-transform duration-200 ease-out ${
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      } lg:translate-x-0`}
+      style={{ backgroundColor: "#0092cc" }}
+    >
+      <div className="flex flex-1 flex-col overflow-y-auto p-4">
+        <div className="mb-6 flex items-center justify-between lg:block">
+          <Link href="/" className="block" onClick={onClose}>
+            <Image
+              src="/onehope-logo.png"
+              alt="One Hope"
+              width={120}
+              height={48}
+              className="h-12 w-auto object-contain"
+              priority
+              unoptimized
+            />
           </Link>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-white/90 hover:bg-white/20 lg:hidden"
+            aria-label="Close menu"
+          >
+            <span className="text-2xl">×</span>
+          </button>
         </div>
         <nav className="flex flex-col gap-1">
           {nav.map(({ href, label, icon }) => {
@@ -36,9 +54,10 @@ export default function Sidebar({ sections = [] }: SidebarProps) {
               <Link
                 key={href}
                 href={href}
+                onClick={onClose}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[16px] transition-colors ${
                   active
-                    ? "bg-primary/20 text-white"
+                    ? "bg-white/20 text-white"
                     : "hover:bg-sidebar-hover hover:text-white"
                 }`}
               >
@@ -57,8 +76,9 @@ export default function Sidebar({ sections = [] }: SidebarProps) {
                   <Link
                     key={sec._id}
                     href={href}
+                    onClick={onClose}
                     className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[16px] transition-colors ${
-                      active ? "bg-primary/20 text-white" : "hover:bg-sidebar-hover hover:text-white"
+                      active ? "bg-white/20 text-white" : "hover:bg-sidebar-hover hover:text-white"
                     }`}
                   >
                     <span className="text-xl" aria-hidden>▦</span>
@@ -69,20 +89,6 @@ export default function Sidebar({ sections = [] }: SidebarProps) {
             </>
           )}
         </nav>
-        <div className="mt-auto border-t border-white/10 pt-4">
-          {footerLinks.map(({ href, label, icon }) => (
-            <a
-              key={href}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[14px] hover:bg-sidebar-hover hover:text-white"
-            >
-              <span aria-hidden>{icon}</span>
-              {label}
-            </a>
-          ))}
-        </div>
       </div>
     </aside>
   );

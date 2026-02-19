@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
   const assetId = await uploadImageAsset(buffer, file.name, file.type);
   if (!assetId) {
     return NextResponse.json(
-      { error: "Failed to upload image (check SANITY_API_TOKEN)" },
+      { error: "Failed to upload image" },
       { status: 500 }
     );
   }

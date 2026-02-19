@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   const ok = await appendResourcesToCollection(collectionId, ids);
   if (!ok) {
     return NextResponse.json(
-      { error: "Failed to append resources (check SANITY_API_TOKEN)" },
+      { error: "Failed to append resources" },
       { status: 500 }
     );
   }

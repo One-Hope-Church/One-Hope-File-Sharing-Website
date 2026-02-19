@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getSession } from "@/lib/session";
 import { getCollectionBySlug, getCollectionById } from "@/lib/sanity";
+import { getSavedResourceIdsForUser } from "@/lib/supabase-saved-resources";
 import ResourceCard from "@/components/ResourceCard";
 
 interface PageProps {
@@ -14,7 +15,7 @@ export default async function CollectionPage({ params }: PageProps) {
   const session = await getSession();
   if (!session.isLoggedIn) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-12 text-center">
+      <div className="mx-auto max-w-4xl px-4 py-12 text-center sm:px-6">
         <p className="text-gray-600">Sign in to view this collection.</p>
         <Link href={`/signin?callbackUrl=${encodeURIComponent(`/collection/${slug}`)}`} className="mt-4 inline-block text-primary hover:underline">
           Sign in
@@ -23,7 +24,12 @@ export default async function CollectionPage({ params }: PageProps) {
     );
   }
 
-  const collection = await getCollectionBySlug(slug) || await getCollectionById(slug);
+  const [bySlug, byId, savedIds] = await Promise.all([
+    getCollectionBySlug(slug),
+    getCollectionById(slug),
+    session.user?.email ? getSavedResourceIdsForUser(session.user.email) : Promise.resolve([]),
+  ]);
+  const collection = bySlug ?? byId;
   if (!collection) notFound();
 
   const title = String(collection.title ?? "Untitled");
@@ -32,7 +38,7 @@ export default async function CollectionPage({ params }: PageProps) {
   const resources = (collection.resources as Array<Record<string, unknown>>) || [];
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-8">
         {heroImage && (
           <div className="relative mb-4 aspect-[21/9] w-full overflow-hidden rounded-xl bg-onehope-gray">
@@ -52,13 +58,18 @@ export default async function CollectionPage({ params }: PageProps) {
               title={String(r.title ?? "Untitled")}
               description={r.description ? String(r.description) : undefined}
               fileType={r.fileType ? String(r.fileType) : undefined}
+              isSaved={savedIds.includes(String(r._id))}
             />
           ))}
         </div>
       ) : (
-        <p className="rounded-lg bg-onehope-info p-6 text-gray-600">
-          No resources in this collection yet. Add resources in Sanity Studio.
-        </p>
+        <div className="rounded-xl border border-onehope-gray bg-onehope-info/30 p-8 text-center">
+          <p className="text-4xl text-onehope-black/40" aria-hidden>📎</p>
+          <p className="mt-4 font-medium text-onehope-black">No resources yet</p>
+          <p className="mt-1 text-gray-600">
+            This collection doesn&apos;t have any files yet. Admins can add resources when creating a new collection.
+          </p>
+        </div>
       )}
     </div>
   );

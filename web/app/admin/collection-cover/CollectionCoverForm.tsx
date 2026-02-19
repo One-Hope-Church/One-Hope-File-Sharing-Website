@@ -112,9 +112,12 @@ export default function CollectionCoverForm({
       </div>
 
       {message && (
-        <p className={message.type === "ok" ? "text-green-700" : "text-red-600"}>
+        <div
+          role="alert"
+          className={`rounded-lg p-3 ${message.type === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-700"}`}
+        >
           {message.text}
-        </p>
+        </div>
       )}
 
       <button

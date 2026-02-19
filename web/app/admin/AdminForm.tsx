@@ -11,7 +11,7 @@ const FILE_TYPES = [
   { value: "other", label: "Other" },
 ];
 
-type UploadMode = "single" | "group";
+type UploadMode = "single" | "group" | "append";
 
 /** Suggest file type from file extension so PDFs/videos show correct icon. */
 function suggestFileType(filename: string): string {
@@ -25,6 +25,26 @@ function suggestFileType(filename: string): string {
 function fileNameWithoutExt(name: string): string {
   const i = name.lastIndexOf(".");
   return i > 0 ? name.slice(0, i) : name;
+}
+
+/** Upload file to URL with progress. Returns response. */
+function uploadWithProgress(
+  url: string,
+  file: File,
+  onProgress: (pct: number) => void
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () =>
+      resolve(new Response(xhr.responseText, { status: xhr.status }));
+    xhr.onerror = () => reject(new Error("Upload failed"));
+    xhr.send(file);
+  });
 }
 
 const COVER_SIZE_GUIDE = "Square 1:1, 1200×1200 px recommended (min 800×800). JPEG, PNG, or WebP, max 5 MB.";
@@ -41,14 +61,18 @@ export default function AdminForm({
   const [sections, setSections] = useState<Array<{ _id: string; title: string }>>([]);
   const [file, setFile] = useState<File | null>(null);
   const [fileType, setFileType] = useState("");
-  const [fileEntries, setFileEntries] = useState<Array<{ file: File; fileType: string }>>([]);
+  const [fileEntries, setFileEntries] = useState<Array<{ file: File; fileType: string; title: string }>>([]);
   const [title, setTitle] = useState("");
   const [groupTitle, setGroupTitle] = useState("");
   const [description, setDescription] = useState("");
-  const collectionId = "uploads"; // default S3 path: collections/uploads/
+  const uploadsFolder = "uploads";
   const [sectionId, setSectionId] = useState("");
+  const [appendCollectionId, setAppendCollectionId] = useState("");
+  const [appendFileEntries, setAppendFileEntries] = useState<Array<{ file: File; fileType: string; title: string }>>([]);
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<string>("");
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
@@ -66,6 +90,8 @@ export default function AdminForm({
     }
     setMessage(null);
     setLoading(true);
+    setUploadStatus("Getting upload URL…");
+    setUploadProgress(0);
     try {
       const presignRes = await fetch("/api/upload/presign", {
         method: "POST",
@@ -73,7 +99,7 @@ export default function AdminForm({
         body: JSON.stringify({
           filename: file.name,
           contentType: file.type || "application/octet-stream",
-          collectionId,
+          collectionId: uploadsFolder,
         }),
       });
       if (!presignRes.ok) {
@@ -81,13 +107,12 @@ export default function AdminForm({
         throw new Error(data.error || "Failed to get upload URL");
       }
       const { url, key } = await presignRes.json();
-      const putRes = await fetch(url, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-      });
+      setUploadStatus("Uploading…");
+      const putRes = await uploadWithProgress(url, file, setUploadProgress);
       if (!putRes.ok) throw new Error("Upload failed");
 
+      setUploadStatus("Creating resource…");
+      setUploadProgress(null);
       const createRes = await fetch("/api/admin/resources", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,12 +126,12 @@ export default function AdminForm({
       });
       if (!createRes.ok) {
         const data = await createRes.json();
-        throw new Error(data.error || "Upload succeeded but failed to create resource in Sanity");
+        throw new Error(data.error || "Upload succeeded but failed to save resource");
       }
 
       setMessage({
         type: "ok",
-        text: "File uploaded and resource added to Sanity. It will appear in the chosen section.",
+        text: "File uploaded and resource added. It will appear in the chosen section.",
       });
       setFile(null);
       setTitle("");
@@ -119,6 +144,8 @@ export default function AdminForm({
       });
     } finally {
       setLoading(false);
+      setUploadProgress(null);
+      setUploadStatus("");
     }
   }
 
@@ -134,9 +161,11 @@ export default function AdminForm({
     }
     setMessage(null);
     setLoading(true);
-    const resourceIds: string[] = [];
+    const collectionResourceIds: string[] = [];
     try {
       for (let i = 0; i < fileEntries.length; i++) {
+        setUploadStatus(`Uploading file ${i + 1} of ${fileEntries.length}…`);
+        setUploadProgress(0);
         const { file: f, fileType: ft } = fileEntries[i];
         const presignRes = await fetch("/api/upload/presign", {
           method: "POST",
@@ -144,7 +173,7 @@ export default function AdminForm({
           body: JSON.stringify({
             filename: f.name,
             contentType: f.type || "application/octet-stream",
-            collectionId,
+            collectionId: uploadsFolder,
           }),
         });
         if (!presignRes.ok) {
@@ -152,29 +181,25 @@ export default function AdminForm({
           throw new Error(data.error || "Failed to get upload URL");
         }
         const { url, key } = await presignRes.json();
-        const putRes = await fetch(url, {
-          method: "PUT",
-          body: f,
-          headers: { "Content-Type": f.type || "application/octet-stream" },
-        });
+        const putRes = await uploadWithProgress(url, f, setUploadProgress);
         if (!putRes.ok) throw new Error(`Upload failed for ${f.name}`);
 
-        const createRes = await fetch("/api/admin/resources", {
+        setUploadProgress(null);
+        const createRes = await fetch("/api/admin/collection-resources", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: fileNameWithoutExt(f.name) || `Item ${i + 1}`,
+            title: (fileEntries[i].title?.trim() || fileNameWithoutExt(f.name) || `Item ${i + 1}`),
             fileType: ft || undefined,
             s3Key: key,
-            sectionId,
           }),
         });
         if (!createRes.ok) {
           const data = await createRes.json();
-          throw new Error(data.error || "Failed to create resource");
+          throw new Error(data.error || "Failed to create collection item");
         }
         const data = await createRes.json();
-        if (data.resourceId) resourceIds.push(data.resourceId);
+        if (data.collectionResourceId) collectionResourceIds.push(data.collectionResourceId);
       }
 
       const collectionRes = await fetch("/api/admin/collections", {
@@ -183,7 +208,7 @@ export default function AdminForm({
         body: JSON.stringify({
           title: groupTitle.trim(),
           sectionId,
-          resourceIds,
+          collectionResourceIds,
         }),
       });
       if (!collectionRes.ok) {
@@ -221,10 +246,90 @@ export default function AdminForm({
       });
     } finally {
       setLoading(false);
+      setUploadProgress(null);
+      setUploadStatus("");
     }
   }
 
-  const handleSubmit = mode === "single" ? uploadSingle : uploadGroup;
+  async function uploadAppend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!appendCollectionId || appendFileEntries.length === 0) {
+      setMessage({ type: "err", text: "Select a collection and at least one file" });
+      return;
+    }
+    setMessage(null);
+    setLoading(true);
+    const collectionResourceIds: string[] = [];
+    try {
+      for (let i = 0; i < appendFileEntries.length; i++) {
+        setUploadStatus(`Uploading file ${i + 1} of ${appendFileEntries.length}…`);
+        setUploadProgress(0);
+        const { file: f, fileType: ft } = appendFileEntries[i];
+        const presignRes = await fetch("/api/upload/presign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: f.name,
+            contentType: f.type || "application/octet-stream",
+            collectionId: uploadsFolder,
+          }),
+        });
+        if (!presignRes.ok) {
+          const data = await presignRes.json();
+          throw new Error(data.error || "Failed to get upload URL");
+        }
+        const { url, key } = await presignRes.json();
+        const putRes = await uploadWithProgress(url, f, setUploadProgress);
+        if (!putRes.ok) throw new Error(`Upload failed for ${f.name}`);
+
+        setUploadProgress(null);
+        const createRes = await fetch("/api/admin/collection-resources", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: (appendFileEntries[i].title?.trim() || fileNameWithoutExt(f.name) || `Item ${i + 1}`),
+            fileType: ft || undefined,
+            s3Key: key,
+          }),
+        });
+        if (!createRes.ok) {
+          const data = await createRes.json();
+          throw new Error(data.error || "Failed to create collection item");
+        }
+        const data = await createRes.json();
+        if (data.collectionResourceId) collectionResourceIds.push(data.collectionResourceId);
+      }
+
+      const appendRes = await fetch("/api/admin/collections/append-resources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          collectionId: appendCollectionId,
+          resourceIds: collectionResourceIds,
+        }),
+      });
+      if (!appendRes.ok) {
+        const data = await appendRes.json();
+        throw new Error(data.error || "Files uploaded but failed to add to collection");
+      }
+
+      setMessage({ type: "ok", text: `${appendFileEntries.length} file(s) added to the collection.` });
+      setAppendCollectionId("");
+      setAppendFileEntries([]);
+    } catch (err) {
+      setMessage({
+        type: "err",
+        text: err instanceof Error ? err.message : "Something went wrong",
+      });
+    } finally {
+      setLoading(false);
+      setUploadProgress(null);
+      setUploadStatus("");
+    }
+  }
+
+  const handleSubmit =
+    mode === "single" ? uploadSingle : mode === "group" ? uploadGroup : uploadAppend;
 
   return (
     <>
@@ -248,6 +353,16 @@ export default function AdminForm({
             className="text-primary"
           />
           <span>New collection (multiple resources)</span>
+        </label>
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="radio"
+            name="mode"
+            checked={mode === "append"}
+            onChange={() => setMode("append")}
+            className="text-primary"
+          />
+          <span>Add to existing collection</span>
         </label>
       </div>
 
@@ -287,7 +402,7 @@ export default function AdminForm({
                 onChange={(e) => setSectionId(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="">— None (add in Sanity later) —</option>
+                <option value="">— None (add later) —</option>
                 {sections.map((s) => (
                   <option key={s._id} value={s._id}>
                     {s.title}
@@ -327,6 +442,99 @@ export default function AdminForm({
               <p className="mt-1 text-sm text-gray-500">
                 Choose PDF, Video, or Image so it displays with the right icon on the site.
               </p>
+            </div>
+          </>
+        ) : mode === "append" ? (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-onehope-black">
+                Collection to add to <span className="text-red-600">*</span>
+              </label>
+              <select
+                value={appendCollectionId}
+                onChange={(e) => setAppendCollectionId(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">— Choose collection —</option>
+                {collections.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-sm text-gray-500">
+                Select an existing collection. Uploaded files will be appended to it.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-onehope-black">
+                Files <span className="text-red-600">*</span>
+              </label>
+              <input
+                type="file"
+                multiple
+                onChange={(e) => {
+                  const selected = Array.from(e.target.files || []);
+                  setAppendFileEntries(
+                    selected.map((f) => ({
+                      file: f,
+                      fileType: suggestFileType(f.name),
+                      title: fileNameWithoutExt(f.name),
+                    }))
+                  );
+                }}
+                className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 file:mr-4 file:rounded file:border-0 file:bg-primary file:px-4 file:py-2 file:text-white file:hover:bg-primary-dark"
+              />
+              {appendFileEntries.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-sm font-medium text-onehope-black">
+                    Set display name and file type for each item:
+                  </p>
+                  {appendFileEntries.map((entry, i) => (
+                    <div
+                      key={`${i}-${entry.file.name}`}
+                      className="flex flex-col gap-2 rounded-lg border border-onehope-gray bg-onehope-info/20 p-3"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="min-w-0 truncate text-xs text-gray-600">
+                          File: {entry.file.name}
+                        </span>
+                        <select
+                          value={entry.fileType}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setAppendFileEntries((prev) =>
+                              prev.map((p, j) => (j === i ? { ...p, fileType: v } : p))
+                            );
+                          }}
+                          className="rounded border border-onehope-gray bg-white px-2 py-1 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          {FILE_TYPES.filter((o) => o.value !== "").map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600">Display name</label>
+                        <input
+                          type="text"
+                          value={entry.title}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setAppendFileEntries((prev) =>
+                              prev.map((p, j) => (j === i ? { ...p, title: v } : p))
+                            );
+                          }}
+                          placeholder={fileNameWithoutExt(entry.file.name)}
+                          className="mt-0.5 w-full rounded border border-onehope-gray bg-white px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -377,7 +585,11 @@ export default function AdminForm({
                 onChange={(e) => {
                   const selected = Array.from(e.target.files || []);
                   setFileEntries(
-                    selected.map((f) => ({ file: f, fileType: suggestFileType(f.name) }))
+                    selected.map((f) => ({
+                      file: f,
+                      fileType: suggestFileType(f.name),
+                      title: fileNameWithoutExt(f.name),
+                    }))
                   );
                 }}
                 className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 file:mr-4 file:rounded file:border-0 file:bg-primary file:px-4 file:py-2 file:text-white file:hover:bg-primary-dark"
@@ -385,32 +597,49 @@ export default function AdminForm({
               {fileEntries.length > 0 && (
                 <div className="mt-3 space-y-2">
                   <p className="text-sm font-medium text-onehope-black">
-                    Set file type for each item (so PDFs and videos show the right icon):
+                    Set display name and file type for each item:
                   </p>
                   {fileEntries.map((entry, i) => (
                     <div
                       key={`${i}-${entry.file.name}`}
-                      className="flex flex-wrap items-center gap-2 rounded-lg border border-onehope-gray bg-onehope-info/20 p-2"
+                      className="flex flex-col gap-2 rounded-lg border border-onehope-gray bg-onehope-info/20 p-3"
                     >
-                      <span className="min-w-0 truncate text-sm font-medium text-onehope-black">
-                        {entry.file.name}
-                      </span>
-                      <select
-                        value={entry.fileType}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setFileEntries((prev) =>
-                            prev.map((p, j) => (j === i ? { ...p, fileType: v } : p))
-                          );
-                        }}
-                        className="rounded border border-onehope-gray bg-white px-2 py-1 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                      >
-                        {FILE_TYPES.filter((o) => o.value !== "").map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="min-w-0 truncate text-xs text-gray-600">
+                          File: {entry.file.name}
+                        </span>
+                        <select
+                          value={entry.fileType}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setFileEntries((prev) =>
+                              prev.map((p, j) => (j === i ? { ...p, fileType: v } : p))
+                            );
+                          }}
+                          className="rounded border border-onehope-gray bg-white px-2 py-1 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          {FILE_TYPES.filter((o) => o.value !== "").map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600">Display name</label>
+                        <input
+                          type="text"
+                          value={entry.title}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setFileEntries((prev) =>
+                              prev.map((p, j) => (j === i ? { ...p, title: v } : p))
+                            );
+                          }}
+                          placeholder={fileNameWithoutExt(entry.file.name)}
+                          className="mt-0.5 w-full rounded border border-onehope-gray bg-white px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -436,26 +665,47 @@ export default function AdminForm({
           </>
         )}
         {message && (
-          <p className={message.type === "ok" ? "text-green-700" : "text-red-600"}>
+          <div
+            role="alert"
+            className={`rounded-lg p-3 ${message.type === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-700"}`}
+          >
             {message.text}
-          </p>
+          </div>
+        )}
+        {uploadStatus && (
+          <div className="rounded-lg border border-onehope-gray bg-onehope-info/20 p-3">
+            <p className="text-sm font-medium text-onehope-black">{uploadStatus}</p>
+            {uploadProgress != null && (
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-onehope-gray">
+                <div
+                  className="h-full bg-primary transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            )}
+          </div>
         )}
         <button
           type="submit"
           disabled={
             loading ||
             (mode === "single" && (!file || !title.trim())) ||
-            (mode === "group" && (!groupTitle.trim() || !sectionId || fileEntries.length === 0))
+            (mode === "group" && (!groupTitle.trim() || !sectionId || fileEntries.length === 0)) ||
+            (mode === "append" && (!appendCollectionId || appendFileEntries.length === 0))
           }
           className="w-full rounded-lg bg-primary py-2 font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
         >
           {loading
             ? mode === "single"
               ? "Uploading & creating resource…"
-              : "Creating collection…"
+              : mode === "append"
+                ? "Adding to collection…"
+                : "Creating collection…"
             : mode === "single"
-              ? "Upload & add to Sanity"
-              : "Create collection"}
+              ? "Upload & add resource"
+              : mode === "append"
+                ? "Add files to collection"
+                : "Create collection"}
         </button>
       </form>
       <p className="mt-6">

@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   });
   if (!groupId) {
     return NextResponse.json(
-      { error: "Failed to create group (check SANITY_API_TOKEN)" },
+      { error: "Failed to create group" },
       { status: 500 }
     );
   }

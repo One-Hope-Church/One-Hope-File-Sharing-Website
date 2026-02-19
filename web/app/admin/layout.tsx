@@ -13,13 +13,25 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
-      <nav className="mb-6 flex gap-4 border-b border-onehope-gray pb-4">
+    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
+      <nav className="mb-6 flex flex-wrap gap-3 border-b border-onehope-gray pb-4 sm:gap-4">
         <Link
           href="/admin"
           className="font-medium text-onehope-black hover:text-primary"
         >
           Upload
+        </Link>
+        <Link
+          href="/admin/collection-manage"
+          className="font-medium text-onehope-black hover:text-primary"
+        >
+          Manage collections
+        </Link>
+        <Link
+          href="/admin/featured"
+          className="font-medium text-onehope-black hover:text-primary"
+        >
+          Featured
         </Link>
         <Link
           href="/admin/collection-cover"

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { createResource } from "@/lib/sanity";
+import { createCollectionResource } from "@/lib/sanity";
 
 export async function POST(request: NextRequest) {
   const session = await getSession();
@@ -16,25 +16,21 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  const description = typeof body.description === "string" ? body.description.trim() : undefined;
+  const description = typeof body.description === "string" ? body.description.trim() || undefined : undefined;
   const fileType = typeof body.fileType === "string" ? body.fileType.trim() || undefined : undefined;
-  const sectionId = typeof body.sectionId === "string" ? body.sectionId.trim() || undefined : undefined;
-  const order = typeof body.order === "number" ? body.order : undefined;
 
-  const resourceId = await createResource({
+  const id = await createCollectionResource({
     title,
-    description,
-    fileType,
     s3Key,
-    sectionId,
-    order,
+    fileType,
+    description,
   });
-  if (!resourceId) {
+  if (!id) {
     return NextResponse.json(
-      { error: "Failed to create resource" },
+      { error: "Failed to create collection resource" },
       { status: 500 }
     );
   }
 
-  return NextResponse.json({ ok: true, resourceId });
+  return NextResponse.json({ ok: true, collectionResourceId: id });
 }

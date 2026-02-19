@@ -42,7 +42,7 @@ export default function SignInPage() {
 
   if (!isSupabaseAuthConfigured()) {
     return (
-      <div className="mx-auto max-w-md px-6 py-12">
+      <div className="mx-auto max-w-md px-4 py-12 sm:px-6">
         <h1 className="text-2xl font-bold text-onehope-black">Sign in</h1>
         <p className="mt-2 text-red-600">
           Sign-in is not configured. Set <code className="rounded bg-gray-100 px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in <code className="rounded bg-gray-100 px-1">web/.env</code> (get it from Supabase Dashboard → Project Settings → API → anon public).
@@ -53,7 +53,7 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[60vh] max-w-md flex-col justify-center px-6">
+    <div className="mx-auto flex min-h-[60vh] max-w-md flex-col justify-center px-4 sm:px-6">
       <h1 className="text-2xl font-bold text-onehope-black">Sign in</h1>
       <p className="mt-2 text-gray-600">
         Enter your email and we’ll send you a one-time code.

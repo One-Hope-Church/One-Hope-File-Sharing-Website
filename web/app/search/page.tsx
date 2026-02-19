@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { searchContent } from "@/lib/sanity";
+import { getSavedResourceIdsForUser } from "@/lib/supabase-saved-resources";
 import CollectionCard from "@/components/CollectionCard";
 import ResourceCard from "@/components/ResourceCard";
 
@@ -14,7 +15,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
 
   if (!session.isLoggedIn) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-12 text-center">
+      <div className="mx-auto max-w-4xl px-4 py-12 text-center sm:px-6">
         <p className="text-gray-600">Sign in to search resources.</p>
         <Link
           href={`/signin?callbackUrl=${encodeURIComponent(`/search${q ? `?q=${encodeURIComponent(q)}` : ""}`)}`}
@@ -27,15 +28,23 @@ export default async function SearchPage({ searchParams }: PageProps) {
   }
 
   const query = (q ?? "").trim();
-  const { collections, resources } = query ? await searchContent(query) : { collections: [], resources: [] };
+  const [searchResult, savedIds] = await Promise.all([
+    query ? searchContent(query) : Promise.resolve({ collections: [], resources: [] }),
+    session.user?.email ? getSavedResourceIdsForUser(session.user.email) : Promise.resolve([]),
+  ]);
+  const { collections, resources } = searchResult;
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
       <h1 className="text-2xl font-bold text-onehope-black">Search</h1>
       {!query ? (
-        <p className="mt-2 text-gray-600">
-          Enter a search term in the bar above to find collections and resources by title or description.
-        </p>
+        <div className="mt-6 rounded-xl border border-onehope-gray bg-onehope-info/30 p-8 text-center">
+          <p className="text-4xl text-onehope-black/40" aria-hidden>🔍</p>
+          <p className="mt-4 font-medium text-onehope-black">Search collections and resources</p>
+          <p className="mt-1 text-gray-600">
+            Use the search bar above to find collections and resources by title or description.
+          </p>
+        </div>
       ) : (
         <>
           <p className="mt-2 text-gray-600">
@@ -54,6 +63,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
                       description={c.description ? String(c.description) : undefined}
                       heroImage={c.heroImage ? String(c.heroImage) : null}
                       slug={c.slug ? String(c.slug) : undefined}
+                      isSaved={savedIds.includes(String(c._id))}
                     />
                   </li>
                 ))}
@@ -72,6 +82,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
                     title={String(r.title ?? "Untitled")}
                     description={r.description ? String(r.description) : undefined}
                     fileType={r.fileType ? String(r.fileType) : undefined}
+                    isSaved={savedIds.includes(String(r._id))}
                   />
                 ))}
               </div>
@@ -79,9 +90,13 @@ export default async function SearchPage({ searchParams }: PageProps) {
           )}
 
           {query && collections.length === 0 && resources.length === 0 && (
-            <p className="mt-8 rounded-lg bg-onehope-info p-6 text-gray-600">
-              No collections or resources match &quot;{query}&quot;. Try different words.
-            </p>
+            <div className="mt-8 rounded-xl border border-onehope-gray bg-onehope-info/30 p-8 text-center">
+              <p className="text-4xl text-onehope-black/40" aria-hidden>🔍</p>
+              <p className="mt-4 font-medium text-onehope-black">No results for &quot;{query}&quot;</p>
+              <p className="mt-1 text-gray-600">
+                Try different keywords or browse sections and collections from the sidebar.
+              </p>
+            </div>
           )}
         </>
       )}

@@ -22,7 +22,7 @@ export default async function AdminUploadPage() {
     <div className="mx-auto max-w-xl px-6 py-8">
       <h1 className="text-2xl font-bold text-onehope-black">Upload file</h1>
       <p className="mt-2 text-gray-600">
-        Upload a file to S3. It will be stored under the collection folder you choose. You can add metadata (e.g. in Sanity) later.
+        Upload a file. It will be stored and you can add it to a section or collection.
       </p>
       <AdminForm collections={collections} />
     </div>

@@ -17,9 +17,9 @@ const config: Config = {
         "onehope-black": "#3C464A",
         "onehope-gray": "#f1f3f4",
         "onehope-info": "#eef1f2",
-        sidebar: "#1d252d",
-        "sidebar-text": "#98a5af",
-        "sidebar-hover": "rgba(255,255,255,0.1)",
+        sidebar: "#0092cc",
+        "sidebar-text": "rgba(255,255,255,0.9)",
+        "sidebar-hover": "rgba(255,255,255,0.15)",
       },
       fontFamily: {
         sans: ["Avenir", "Helvetica", "Arial", "Verdana", "sans-serif"],

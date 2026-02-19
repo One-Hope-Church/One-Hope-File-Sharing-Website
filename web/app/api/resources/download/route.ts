@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { getResourceById } from "@/lib/sanity";
+import { getDownloadableById } from "@/lib/sanity";
 import { getPresignedDownloadUrl } from "@/lib/s3";
+import { logDownload } from "@/lib/supabase-download-log";
 
 export async function GET(request: NextRequest) {
   const session = await getSession();
@@ -12,16 +13,28 @@ export async function GET(request: NextRequest) {
   if (!id) {
     return NextResponse.json({ error: "Resource id required" }, { status: 400 });
   }
-  const resource = await getResourceById(id);
-  if (!resource || typeof resource.s3Key !== "string") {
+  const doc = await getDownloadableById(id);
+  if (!doc) {
     return NextResponse.json({ error: "Resource not found" }, { status: 404 });
   }
-  const url = await getPresignedDownloadUrl(resource.s3Key as string);
+  const url = await getPresignedDownloadUrl(doc.s3Key);
   if (!url) {
     return NextResponse.json(
       { error: "Download not configured" },
       { status: 503 }
     );
   }
-  return NextResponse.redirect(url);
+  if (session.user?.email) {
+    try {
+      await logDownload(session.user.email, id);
+    } catch {
+      // Don't fail the download if logging fails
+    }
+  }
+  // Return URL as JSON so client can open it directly (avoids redirect handling issues)
+  const acceptsJson = request.headers.get("accept")?.includes("application/json");
+  if (acceptsJson) {
+    return NextResponse.json({ url });
+  }
+  return NextResponse.redirect(url, 302);
 }

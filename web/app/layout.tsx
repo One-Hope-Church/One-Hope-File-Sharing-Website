@@ -1,9 +1,13 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { getSession } from "@/lib/session";
 import { getSectionsForSidebar } from "@/lib/sanity";
-import Sidebar from "@/components/Sidebar";
-import TopBar from "@/components/TopBar";
+import AppShell from "@/components/AppShell";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
   title: "One Hope Resources",
@@ -15,21 +19,18 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await getSession();
+  const [session, sections] = await Promise.all([
+    getSession(),
+    getSectionsForSidebar(),
+  ]);
   const showUpload = session.user?.role === "admin";
-
-  const sections = await getSectionsForSidebar();
 
   return (
     <html lang="en">
       <body className="min-h-screen bg-white font-sans text-onehope-black antialiased">
-        <div className="flex min-h-screen">
-          <Sidebar sections={sections} />
-          <div className="flex flex-1 flex-col pl-[280px]">
-            <TopBar user={session.user} showUpload={showUpload} />
-            <main className="flex-1 overflow-auto">{children}</main>
-          </div>
-        </div>
+        <AppShell user={session.user} showUpload={showUpload} sections={sections}>
+          {children}
+        </AppShell>
       </body>
     </html>
   );

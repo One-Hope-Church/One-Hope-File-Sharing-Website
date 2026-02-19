@@ -21,7 +21,7 @@ export default async function CollectionCoverPage() {
       </p>
       {list.length === 0 ? (
         <p className="mt-6 rounded-lg bg-onehope-info p-4 text-gray-600">
-          No collections yet. Create a collection in Sanity Studio first.
+          No collections yet. Create a collection first.
         </p>
       ) : (
         <CollectionCoverForm collections={list} />

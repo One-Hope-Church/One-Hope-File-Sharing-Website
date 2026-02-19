@@ -39,9 +39,15 @@ export async function getPresignedUploadUrl(
 
 export async function getPresignedDownloadUrl(
   key: string,
-  expiresIn = 600
+  expiresIn = 600,
+  filename?: string
 ): Promise<string | null> {
   if (!s3 || !bucket) return null;
-  const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+  const name = (filename ?? key.split("/").pop() ?? "download").replace(/"/g, "");
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ResponseContentDisposition: `attachment; filename="${name}"`,
+  });
   return getSignedUrl(s3, command, { expiresIn });
 }

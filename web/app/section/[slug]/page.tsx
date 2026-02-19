@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
-import { getSectionBySlug, getCollectionsForSection, getStandaloneResourcesForSection } from "@/lib/sanity";
+import { getSectionBySlug, getCollectionsForSection, getResourcesForSection } from "@/lib/sanity";
+import { getSavedResourceIdsForUser } from "@/lib/supabase-saved-resources";
+import CollectionCard from "@/components/CollectionCard";
 import ResourceCard from "@/components/ResourceCard";
 
 interface PageProps {
@@ -13,7 +15,7 @@ export default async function SectionPage({ params }: PageProps) {
   const session = await getSession();
   if (!session.isLoggedIn) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-12 text-center">
+      <div className="mx-auto max-w-4xl px-4 py-12 text-center sm:px-6">
         <p className="text-gray-600">Sign in to view this section.</p>
         <Link
           href={`/signin?callbackUrl=${encodeURIComponent(`/section/${slug}`)}`}
@@ -28,15 +30,16 @@ export default async function SectionPage({ params }: PageProps) {
   const section = await getSectionBySlug(slug);
   if (!section) notFound();
 
-  const [collections, resources] = await Promise.all([
+  const [collections, resources, savedIds] = await Promise.all([
     getCollectionsForSection(section._id),
-    getStandaloneResourcesForSection(section._id),
+    getResourcesForSection(section._id),
+    session.user?.email ? getSavedResourceIdsForUser(session.user.email) : Promise.resolve([]),
   ]);
 
   const title = String(section.title ?? "Untitled");
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-onehope-black">{title}</h1>
       </div>
@@ -44,19 +47,19 @@ export default async function SectionPage({ params }: PageProps) {
       {collections.length > 0 && (
         <section className="mb-10">
           <h2 className="mb-4 text-xl font-bold text-onehope-black">Collections</h2>
-          <ul className="space-y-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             {collections.map((col) => (
-              <li key={col._id}>
-                <Link
-                  href={`/collection/${col.slug}`}
-                  className="flex items-center gap-3 rounded-lg border border-onehope-gray bg-white p-4 transition-colors hover:border-primary/50 hover:bg-onehope-info/30"
-                >
-                  <span className="text-2xl" aria-hidden>▦</span>
-                  <span className="font-semibold text-onehope-black">{col.title ?? "Untitled"}</span>
-                </Link>
-              </li>
+              <CollectionCard
+                key={col._id}
+                id={col._id}
+                title={col.title ?? "Untitled"}
+                description={col.description}
+                heroImage={col.heroImage ?? null}
+                slug={col.slug}
+                isSaved={savedIds.includes(col._id)}
+              />
             ))}
-          </ul>
+          </div>
         </section>
       )}
 
@@ -71,6 +74,7 @@ export default async function SectionPage({ params }: PageProps) {
                 title={String(r.title ?? "Untitled")}
                 description={r.description ? String(r.description) : undefined}
                 fileType={r.fileType ? String(r.fileType) : undefined}
+                isSaved={savedIds.includes(String(r._id))}
               />
             ))}
           </div>
@@ -78,9 +82,13 @@ export default async function SectionPage({ params }: PageProps) {
       )}
 
       {collections.length === 0 && resources.length === 0 && (
-        <p className="rounded-lg bg-onehope-info p-6 text-gray-600">
-          No collections or resources in this section yet.
-        </p>
+        <div className="rounded-xl border border-onehope-gray bg-onehope-info/30 p-8 text-center">
+          <p className="text-4xl text-onehope-black/40" aria-hidden>▦</p>
+          <p className="mt-4 font-medium text-onehope-black">Nothing here yet</p>
+          <p className="mt-1 text-gray-600">
+            This section doesn&apos;t have any collections or resources yet. Check back soon or browse other sections.
+          </p>
+        </div>
       )}
     </div>
   );

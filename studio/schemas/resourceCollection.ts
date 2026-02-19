@@ -53,10 +53,10 @@ export const resourceCollection = defineType({
     }),
     defineField({
       name: "resources",
-      title: "Resources",
+      title: "Collection resources",
       type: "array",
-      of: [{ type: "reference", to: [{ type: "resource" }] }],
-      description: "Resources in this collection. Shown in upload date order (newest first).",
+      of: [{ type: "reference", to: [{ type: "collectionResource" }] }],
+      description: "Items in this collection (PDFs, videos, etc.). These are collection-only—not standalone resources.",
     }),
     defineField({
       name: "relatedCollections",
