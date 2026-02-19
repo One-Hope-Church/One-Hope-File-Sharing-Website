@@ -12,6 +12,10 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "One Hope Resources",
   description: "One Hope Church file sharing and resources",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/favicon-512.png",
+  },
 };
 
 export default async function RootLayout({

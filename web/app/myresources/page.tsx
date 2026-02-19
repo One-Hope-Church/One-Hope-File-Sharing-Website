@@ -6,7 +6,14 @@ import { getSavedItemsByIds, getResourcesByIds } from "@/lib/sanity";
 import ResourceCard from "@/components/ResourceCard";
 import SavedCollectionCard from "@/components/SavedCollectionCard";
 
-export default async function MyResourcesPage() {
+const COLLECTIONS_PER_PAGE = 5;
+const MAX_RECENT_DOWNLOADS = 6;
+
+interface PageProps {
+  searchParams: Promise<{ page?: string }>;
+}
+
+export default async function MyResourcesPage({ searchParams }: PageProps) {
   const session = await getSession();
   if (!session.isLoggedIn) {
     return (
@@ -24,8 +31,9 @@ export default async function MyResourcesPage() {
     session.user?.email ? getRecentDownloadIdsForUser(session.user.email) : Promise.resolve([]),
   ]);
   const items = savedIds.length > 0 ? await getSavedItemsByIds(savedIds) : [];
-  const recentDownloads =
+  const recentDownloadsRaw =
     recentDownloadIds.length > 0 ? await getResourcesByIds(recentDownloadIds) : [];
+  const recentDownloads = recentDownloadsRaw.slice(0, MAX_RECENT_DOWNLOADS);
   const collections = items.filter(
     (i) => String(i._type) === "resourceCollection"
   ) as Array<Record<string, unknown>>;
@@ -33,6 +41,13 @@ export default async function MyResourcesPage() {
     (i) =>
       String(i._type) === "resource" || String(i._type) === "collectionResource"
   ) as Array<Record<string, unknown>>;
+
+  const collectionsPage = Math.max(1, parseInt((await searchParams).page ?? "1", 10) || 1);
+  const totalCollectionPages = Math.ceil(collections.length / COLLECTIONS_PER_PAGE);
+  const paginatedCollections = collections.slice(
+    (collectionsPage - 1) * COLLECTIONS_PER_PAGE,
+    collectionsPage * COLLECTIONS_PER_PAGE
+  );
 
   const hasItems =
     collections.length > 0 || resources.length > 0 || recentDownloads.length > 0;
@@ -46,6 +61,57 @@ export default async function MyResourcesPage() {
 
       {hasItems ? (
         <div className="mt-8 space-y-6">
+          {collections.length > 0 && (
+            <section>
+              <h2 className="mb-3 text-lg font-semibold text-onehope-black">Saved collections</h2>
+              <div className="space-y-3">
+                {paginatedCollections.map((c: Record<string, unknown>) => (
+                  <SavedCollectionCard
+                    key={String(c._id)}
+                    id={String(c._id)}
+                    title={String(c.title ?? "Untitled")}
+                    description={c.description ? String(c.description) : undefined}
+                    heroImage={c.heroImage ? String(c.heroImage) : null}
+                    slug={c.slug ? String(c.slug) : undefined}
+                  />
+                ))}
+              </div>
+              {totalCollectionPages > 1 && (
+                <nav
+                  className="mt-4 flex items-center justify-center gap-2"
+                  aria-label="Saved collections pagination"
+                >
+                  {collectionsPage > 1 ? (
+                    <Link
+                      href={`/myresources?page=${collectionsPage - 1}`}
+                      className="rounded-lg border border-onehope-gray px-4 py-2 text-sm font-medium text-onehope-black hover:bg-onehope-info/50"
+                    >
+                      Previous
+                    </Link>
+                  ) : (
+                    <span className="rounded-lg border border-onehope-gray/50 px-4 py-2 text-sm text-gray-400">
+                      Previous
+                    </span>
+                  )}
+                  <span className="text-sm text-gray-600">
+                    Page {collectionsPage} of {totalCollectionPages}
+                  </span>
+                  {collectionsPage < totalCollectionPages ? (
+                    <Link
+                      href={`/myresources?page=${collectionsPage + 1}`}
+                      className="rounded-lg border border-onehope-gray px-4 py-2 text-sm font-medium text-onehope-black hover:bg-onehope-info/50"
+                    >
+                      Next
+                    </Link>
+                  ) : (
+                    <span className="rounded-lg border border-onehope-gray/50 px-4 py-2 text-sm text-gray-400">
+                      Next
+                    </span>
+                  )}
+                </nav>
+              )}
+            </section>
+          )}
           {recentDownloads.length > 0 && (
             <section>
               <h2 className="mb-3 text-lg font-semibold text-onehope-black">
@@ -60,23 +126,6 @@ export default async function MyResourcesPage() {
                     description={r.description ? String(r.description) : undefined}
                     fileType={r.fileType ? String(r.fileType) : undefined}
                     isSaved={savedIds.includes(String(r._id))}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-          {collections.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-lg font-semibold text-onehope-black">Saved collections</h2>
-              <div className="space-y-3">
-                {collections.map((c: Record<string, unknown>) => (
-                  <SavedCollectionCard
-                    key={String(c._id)}
-                    id={String(c._id)}
-                    title={String(c.title ?? "Untitled")}
-                    description={c.description ? String(c.description) : undefined}
-                    heroImage={c.heroImage ? String(c.heroImage) : null}
-                    slug={c.slug ? String(c.slug) : undefined}
                   />
                 ))}
               </div>
