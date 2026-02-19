@@ -381,25 +381,28 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-4"
       onClick={() => setVisible(false)}
       role="dialog"
       aria-modal="true"
       aria-labelledby="profile-modal-title"
     >
       <div
-        className="w-full max-w-lg animate-slide-up rounded-t-2xl bg-white shadow-xl sm:rounded-2xl"
+        className="flex max-h-[90vh] w-full max-w-lg flex-col animate-slide-up overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[85vh] sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="border-b border-onehope-gray px-6 py-4">
-          <h2 id="profile-modal-title" className="text-xl font-bold text-onehope-black">
+        <div className="shrink-0 border-b border-onehope-gray px-4 py-3 sm:px-6 sm:py-4">
+          <h2 id="profile-modal-title" className="text-lg font-bold text-onehope-black sm:text-xl">
             Complete your profile
           </h2>
           <p className="mt-1 text-sm text-gray-600">
             Help us personalize your experience with a few quick questions.
           </p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4 p-6">
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto space-y-4 p-4 sm:p-6"
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <ReqLabel id="first_name">First Name</ReqLabel>
