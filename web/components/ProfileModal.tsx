@@ -288,6 +288,9 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
   const [countryOpen, setCountryOpen] = useState(false);
   const [countryQuery, setCountryQuery] = useState("");
   const countryRef = useRef<HTMLDivElement>(null);
+  const [stateOpen, setStateOpen] = useState(false);
+  const [stateQuery, setStateQuery] = useState("");
+  const stateRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -301,15 +304,15 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (countryRef.current && !countryRef.current.contains(e.target as Node)) {
-        setCountryOpen(false);
-      }
+      const target = e.target as Node;
+      if (countryRef.current && !countryRef.current.contains(target)) setCountryOpen(false);
+      if (stateRef.current && !stateRef.current.contains(target)) setStateOpen(false);
     }
-    if (countryOpen) {
+    if (countryOpen || stateOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [countryOpen]);
+  }, [countryOpen, stateOpen]);
 
   useEffect(() => {
     let mounted = true;
@@ -525,22 +528,69 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
             </div>
             <div>
               {form.country === "US" ? (
-                <>
+                <div ref={stateRef} className="relative">
                   <ReqLabel id="church_state">Church State</ReqLabel>
-                  <select
+                  <input
                     id="church_state"
-                    value={form.church_state}
-                    onChange={(e) => setForm((f) => ({ ...f, church_state: e.target.value }))}
+                    type="text"
+                    autoComplete="off"
+                    value={
+                      stateOpen
+                        ? stateQuery
+                        : US_STATES.find((s) => s.value === form.church_state)?.label ?? form.church_state
+                    }
+                    onChange={(e) => {
+                      setStateQuery(e.target.value);
+                      setStateOpen(true);
+                    }}
+                    onFocus={() => {
+                      setStateQuery("");
+                      setStateOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        setStateOpen(false);
+                        setStateQuery("");
+                      }
+                    }}
                     required
+                    placeholder="Type to search..."
                     className="mt-1 w-full rounded-lg border border-onehope-gray px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    {US_STATES.map((s) => (
-                      <option key={s.value || "empty"} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                </>
+                  />
+                  {stateOpen && (
+                    <ul
+                      className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-onehope-gray bg-white py-1 shadow-lg"
+                      role="listbox"
+                    >
+                      {US_STATES.filter(
+                        (s) =>
+                          s.value &&
+                          s.label.toLowerCase().includes(stateQuery.toLowerCase())
+                      ).map((s) => (
+                        <li
+                          key={s.value}
+                          role="option"
+                          aria-selected={form.church_state === s.value}
+                          onClick={() => {
+                            setForm((f) => ({ ...f, church_state: s.value }));
+                            setStateOpen(false);
+                            setStateQuery("");
+                          }}
+                          className="cursor-pointer px-3 py-2 text-onehope-black hover:bg-onehope-info/50"
+                        >
+                          {s.label}
+                        </li>
+                      ))}
+                      {US_STATES.filter(
+                        (s) =>
+                          s.value &&
+                          s.label.toLowerCase().includes(stateQuery.toLowerCase())
+                      ).length === 0 && (
+                        <li className="px-3 py-2 text-gray-500">No matching state</li>
+                      )}
+                    </ul>
+                  )}
+                </div>
               ) : (
                 <>
                   <ReqLabel id="church_state">State / Province / Region</ReqLabel>
