@@ -2,6 +2,68 @@
 
 import { useState, useEffect } from "react";
 
+const US_STATES = [
+  { value: "", label: "Select state" },
+  { value: "AL", label: "Alabama" },
+  { value: "AK", label: "Alaska" },
+  { value: "AZ", label: "Arizona" },
+  { value: "AR", label: "Arkansas" },
+  { value: "CA", label: "California" },
+  { value: "CO", label: "Colorado" },
+  { value: "CT", label: "Connecticut" },
+  { value: "DE", label: "Delaware" },
+  { value: "FL", label: "Florida" },
+  { value: "GA", label: "Georgia" },
+  { value: "HI", label: "Hawaii" },
+  { value: "ID", label: "Idaho" },
+  { value: "IL", label: "Illinois" },
+  { value: "IN", label: "Indiana" },
+  { value: "IA", label: "Iowa" },
+  { value: "KS", label: "Kansas" },
+  { value: "KY", label: "Kentucky" },
+  { value: "LA", label: "Louisiana" },
+  { value: "ME", label: "Maine" },
+  { value: "MD", label: "Maryland" },
+  { value: "MA", label: "Massachusetts" },
+  { value: "MI", label: "Michigan" },
+  { value: "MN", label: "Minnesota" },
+  { value: "MS", label: "Mississippi" },
+  { value: "MO", label: "Missouri" },
+  { value: "MT", label: "Montana" },
+  { value: "NE", label: "Nebraska" },
+  { value: "NV", label: "Nevada" },
+  { value: "NH", label: "New Hampshire" },
+  { value: "NJ", label: "New Jersey" },
+  { value: "NM", label: "New Mexico" },
+  { value: "NY", label: "New York" },
+  { value: "NC", label: "North Carolina" },
+  { value: "ND", label: "North Dakota" },
+  { value: "OH", label: "Ohio" },
+  { value: "OK", label: "Oklahoma" },
+  { value: "OR", label: "Oregon" },
+  { value: "PA", label: "Pennsylvania" },
+  { value: "RI", label: "Rhode Island" },
+  { value: "SC", label: "South Carolina" },
+  { value: "SD", label: "South Dakota" },
+  { value: "TN", label: "Tennessee" },
+  { value: "TX", label: "Texas" },
+  { value: "UT", label: "Utah" },
+  { value: "VT", label: "Vermont" },
+  { value: "VA", label: "Virginia" },
+  { value: "WA", label: "Washington" },
+  { value: "WV", label: "West Virginia" },
+  { value: "WI", label: "Wisconsin" },
+  { value: "WY", label: "Wyoming" },
+  { value: "DC", label: "District of Columbia" },
+];
+
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (digits.length <= 3) return digits.replace(/(\d{0,3})/, "($1");
+  if (digits.length <= 6) return digits.replace(/(\d{3})(\d{0,3})/, "($1) $2");
+  return digits.replace(/(\d{3})(\d{3})(\d{0,4})/, "($1) $2-$3");
+}
+
 interface ProfileModalProps {
   userEmail: string;
   onComplete: () => void;
@@ -16,6 +78,7 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
     last_name: "",
     phone: "",
     church_name: "",
+    church_title: "",
     church_city: "",
     church_state: "",
   });
@@ -37,11 +100,13 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
         const res = await fetch("/api/profile", { credentials: "same-origin" });
         const data = await res.json().catch(() => ({}));
         if (mounted && !data.complete && data.profile) {
+          const rawPhone = (data.profile.phone ?? "").toString();
           setForm({
             first_name: data.profile.first_name ?? "",
             last_name: data.profile.last_name ?? "",
-            phone: data.profile.phone ?? "",
+            phone: rawPhone ? formatPhone(rawPhone) : "",
             church_name: data.profile.church_name ?? "",
+            church_title: data.profile.church_title ?? "",
             church_city: data.profile.church_city ?? "",
             church_state: data.profile.church_state ?? "",
           });
@@ -81,6 +146,12 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
 
   if (!needsProfile || !visible) return null;
 
+  const ReqLabel = ({ id, children }: { id: string; children: React.ReactNode }) => (
+    <label htmlFor={id} className="block text-sm font-medium text-onehope-black">
+      {children} <span className="text-red-600" aria-hidden>*</span>
+    </label>
+  );
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center"
@@ -104,9 +175,7 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="first_name" className="block text-sm font-medium text-onehope-black">
-                First Name *
-              </label>
+              <ReqLabel id="first_name">First Name</ReqLabel>
               <input
                 id="first_name"
                 type="text"
@@ -117,9 +186,7 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
               />
             </div>
             <div>
-              <label htmlFor="last_name" className="block text-sm font-medium text-onehope-black">
-                Last Name *
-              </label>
+              <ReqLabel id="last_name">Last Name</ReqLabel>
               <input
                 id="last_name"
                 type="text"
@@ -131,53 +198,67 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
             </div>
           </div>
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-onehope-black">
-              Phone Number
-            </label>
+            <ReqLabel id="phone">Phone Number</ReqLabel>
             <input
               id="phone"
               type="tel"
               value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, phone: formatPhone(e.target.value) }))}
+              placeholder="(555) 123-4567"
+              required
               className="mt-1 w-full rounded-lg border border-onehope-gray px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
           <div>
-            <label htmlFor="church_name" className="block text-sm font-medium text-onehope-black">
-              Church Name
-            </label>
+            <ReqLabel id="church_name">Church Name</ReqLabel>
             <input
               id="church_name"
               type="text"
               value={form.church_name}
               onChange={(e) => setForm((f) => ({ ...f, church_name: e.target.value }))}
+              required
+              className="mt-1 w-full rounded-lg border border-onehope-gray px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          <div>
+            <ReqLabel id="church_title">Title / Position</ReqLabel>
+            <input
+              id="church_title"
+              type="text"
+              value={form.church_title}
+              onChange={(e) => setForm((f) => ({ ...f, church_title: e.target.value }))}
+              placeholder="e.g. Pastor, Worship Leader, Youth Director"
+              required
               className="mt-1 w-full rounded-lg border border-onehope-gray px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="church_city" className="block text-sm font-medium text-onehope-black">
-                Church City
-              </label>
+              <ReqLabel id="church_city">Church City</ReqLabel>
               <input
                 id="church_city"
                 type="text"
                 value={form.church_city}
                 onChange={(e) => setForm((f) => ({ ...f, church_city: e.target.value }))}
+                required
                 className="mt-1 w-full rounded-lg border border-onehope-gray px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
             <div>
-              <label htmlFor="church_state" className="block text-sm font-medium text-onehope-black">
-                Church State
-              </label>
-              <input
+              <ReqLabel id="church_state">Church State</ReqLabel>
+              <select
                 id="church_state"
-                type="text"
                 value={form.church_state}
                 onChange={(e) => setForm((f) => ({ ...f, church_state: e.target.value }))}
+                required
                 className="mt-1 w-full rounded-lg border border-onehope-gray px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
+              >
+                {US_STATES.map((s) => (
+                  <option key={s.value || "empty"} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
