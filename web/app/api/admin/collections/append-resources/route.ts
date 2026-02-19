@@ -18,10 +18,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const collectionId =
-    typeof (body as Record<string, unknown>).collectionId === "string"
-      ? (body as Record<string, unknown>).collectionId.trim()
-      : "";
+  const rawCollectionId = (body as Record<string, unknown>).collectionId;
+  const collectionId = typeof rawCollectionId === "string" ? rawCollectionId.trim() : "";
   const resourceIds = (body as Record<string, unknown>).resourceIds;
   const ids = Array.isArray(resourceIds)
     ? resourceIds.filter((id): id is string => typeof id === "string" && id.length > 0)
