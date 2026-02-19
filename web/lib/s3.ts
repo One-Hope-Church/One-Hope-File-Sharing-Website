@@ -51,3 +51,17 @@ export async function getPresignedDownloadUrl(
   });
   return getSignedUrl(s3, command, { expiresIn });
 }
+
+/** Presigned URL for preview (inline, opens in browser). */
+export async function getPresignedPreviewUrl(
+  key: string,
+  expiresIn = 600
+): Promise<string | null> {
+  if (!s3 || !bucket) return null;
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ResponseContentDisposition: "inline",
+  });
+  return getSignedUrl(s3, command, { expiresIn });
+}
