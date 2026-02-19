@@ -42,17 +42,6 @@ const resourceFields = `
   order
 `;
 
-const resourceFieldsWithCreated = `
-  _id,
-  title,
-  description,
-  fileType,
-  s3Key,
-  thumbnailUrl,
-  order,
-  _createdAt
-`;
-
 const collectionResourceFields = `
   _id,
   title,

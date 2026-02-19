@@ -81,7 +81,7 @@ export default function ResourceCard({
               ? "Download is temporarily unavailable."
               : (data.error as string) || `Download failed (${res.status}). Please try again.`;
       setError(msg);
-    } catch (err) {
+    } catch {
       setError("Download failed. Please try again.");
     } finally {
       setDownloading(false);

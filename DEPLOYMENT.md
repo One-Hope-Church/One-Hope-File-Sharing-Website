@@ -33,6 +33,14 @@
 
 5. **Custom domain** (optional) – In Vercel → Project Settings → Domains, add your domain (e.g. `resources.onehopechurch.com`) and follow DNS instructions.
 
+## Troubleshooting: 404 NOT_FOUND
+
+If you see `404: NOT_FOUND` after deploying:
+
+1. **Set Root Directory** – Vercel → Project Settings → General → Root Directory → enter `web` → Save. Then redeploy.
+2. **Check build logs** – Deployments → click the deployment → Building. Ensure the build completes successfully.
+3. **Env vars** – Missing required env vars can cause build failures. Add all variables from the table above.
+
 ## Pre-deploy checklist
 
 - [ ] All env vars set in Vercel (copy from `web/.env` but use production values)
