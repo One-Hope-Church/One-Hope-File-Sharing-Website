@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const sectionId = typeof body.sectionId === "string" ? body.sectionId.trim() : "";
   const resourceIds = Array.isArray(body.resourceIds)
-    ? body.resourceIds.filter((id): id is string => typeof id === "string")
+    ? body.resourceIds.filter((id: unknown): id is string => typeof id === "string")
     : [];
   if (!title || !sectionId) {
     return NextResponse.json(

@@ -156,7 +156,7 @@ const downloadableFields = `_id, title, description, fileType`;
 /** Get resource or collectionResource docs by IDs (for My Resources). Preserves order of ids. */
 export async function getResourcesByIds(ids: string[]): Promise<Array<Record<string, unknown>>> {
   if (!projectId || projectId === "placeholder" || !ids.length) return [];
-  const distinct = [...new Set(ids)];
+  const distinct = Array.from(new Set(ids));
   const docs = await sanityClient.fetch<Array<Record<string, unknown>>>(
     `*[_type in ["resource", "collectionResource"] && _id in $ids]{ ${downloadableFields} }`,
     { ids: distinct }
@@ -178,7 +178,7 @@ const savedItemFields = `
 /** Get saved items (resources, collectionResources, or collections) by IDs. Preserves order. */
 export async function getSavedItemsByIds(ids: string[]): Promise<Array<Record<string, unknown>>> {
   if (!projectId || projectId === "placeholder" || !ids.length) return [];
-  const distinct = [...new Set(ids)];
+  const distinct = Array.from(new Set(ids));
   const docs = await sanityClient.fetch<Array<Record<string, unknown>>>(
     `*[_type in ["resource", "collectionResource", "resourceCollection"] && _id in $ids]{ ${savedItemFields} }`,
     { ids: distinct }
