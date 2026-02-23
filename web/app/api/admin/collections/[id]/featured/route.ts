@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { getSession } from "@/lib/session";
 import { setCollectionFeatured } from "@/lib/sanity";
 
@@ -29,5 +29,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Failed to update" }, { status: 500 });
   }
   revalidatePath("/");
+  revalidatePath("/admin/featured");
+  revalidateTag("featured");
   return NextResponse.json({ ok: true });
 }

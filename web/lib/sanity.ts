@@ -107,7 +107,7 @@ export async function getFeaturedCollectionsForHome(limit = 6) {
       return seededShuffle(all, today).slice(0, limit);
     },
     ["featured-for-home", today, String(limit)],
-    { revalidate: 3600 }
+    { revalidate: 300, tags: ["featured"] }
   )();
 }
 
@@ -469,8 +469,13 @@ export async function setCollectionFeatured(
   featured: boolean
 ): Promise<boolean> {
   if (!sanityClientWithToken) return false;
-  await sanityClientWithToken.patch(collectionId).set({ featured }).commit();
-  return true;
+  try {
+    await sanityClientWithToken.patch(collectionId).set({ featured }).commit();
+    return true;
+  } catch (err) {
+    console.error("setCollectionFeatured failed:", err);
+    return false;
+  }
 }
 
 /** Update a collectionResource document (title, description, fileType). */

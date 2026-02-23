@@ -18,6 +18,9 @@ export default async function AdminFeaturedPage() {
       <p className="mt-2 text-gray-600">
         Mark collections to feature on the home page. Up to 6 rotate each day.
       </p>
+      <p className="mt-1 text-sm text-gray-500">
+        If you deleted a featured collection and it still appears on the homepage, click Refresh cache.
+      </p>
       <FeaturedManageClient collections={collections} />
     </div>
   );
