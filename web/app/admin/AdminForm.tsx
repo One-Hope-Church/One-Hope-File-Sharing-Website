@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useDropzone } from "react-dropzone";
 
 const FILE_TYPES = [
   { value: "", label: "Select type" },
@@ -83,6 +84,44 @@ export default function AdminForm({
       .then(setSections)
       .catch(() => setSections([]));
   }, []);
+
+  const onSingleDrop = useCallback((acceptedFiles: File[]) => {
+    const f = acceptedFiles[0] ?? null;
+    setFile(f);
+    setFileType(f ? suggestFileType(f.name) : "");
+  }, []);
+  const singleDrop = useDropzone({ onDrop: onSingleDrop, multiple: false });
+
+  const onAppendDrop = useCallback((acceptedFiles: File[]) => {
+    setAppendFileEntries(
+      acceptedFiles.map((f) => ({
+        file: f,
+        fileType: suggestFileType(f.name),
+        title: fileNameWithoutExt(f.name),
+      }))
+    );
+  }, []);
+  const appendDrop = useDropzone({ onDrop: onAppendDrop, multiple: true });
+
+  const onGroupDrop = useCallback((acceptedFiles: File[]) => {
+    setFileEntries(
+      acceptedFiles.map((f) => ({
+        file: f,
+        fileType: suggestFileType(f.name),
+        title: fileNameWithoutExt(f.name),
+      }))
+    );
+  }, []);
+  const groupDrop = useDropzone({ onDrop: onGroupDrop, multiple: true });
+
+  const onCoverDrop = useCallback((acceptedFiles: File[]) => {
+    setCoverImage(acceptedFiles[0] ?? null);
+  }, []);
+  const coverDrop = useDropzone({
+    onDrop: onCoverDrop,
+    multiple: false,
+    accept: { "image/jpeg": [".jpg", ".jpeg"], "image/png": [".png"], "image/webp": [".webp"] },
+  });
 
   async function uploadSingle(e: React.FormEvent) {
     e.preventDefault();
@@ -416,15 +455,24 @@ export default function AdminForm({
               <label className="block text-sm font-medium text-onehope-black">
                 File <span className="text-red-600">*</span>
               </label>
-              <input
-                type="file"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  setFile(f);
-                  setFileType(f ? suggestFileType(f.name) : "");
-                }}
-                className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 file:mr-4 file:rounded file:border-0 file:bg-primary file:px-4 file:py-2 file:text-white file:hover:bg-primary-dark"
-              />
+              <div
+                {...singleDrop.getRootProps()}
+                className={`mt-1 w-full cursor-pointer rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
+                  singleDrop.isDragActive
+                    ? "border-primary bg-primary/10"
+                    : "border-onehope-gray hover:border-primary/50"
+                }`}
+              >
+                <input {...singleDrop.getInputProps()} />
+                {singleDrop.isDragActive ? (
+                  <p className="text-primary">Drop the file here…</p>
+                ) : (
+                  <p className="text-gray-600">
+                    Drag and drop a file here, or click to select
+                    {file && <span className="block mt-1 text-sm text-onehope-black">✓ {file.name}</span>}
+                  </p>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-onehope-black">
@@ -472,21 +520,28 @@ export default function AdminForm({
               <label className="block text-sm font-medium text-onehope-black">
                 Files <span className="text-red-600">*</span>
               </label>
-              <input
-                type="file"
-                multiple
-                onChange={(e) => {
-                  const selected = Array.from(e.target.files || []);
-                  setAppendFileEntries(
-                    selected.map((f) => ({
-                      file: f,
-                      fileType: suggestFileType(f.name),
-                      title: fileNameWithoutExt(f.name),
-                    }))
-                  );
-                }}
-                className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 file:mr-4 file:rounded file:border-0 file:bg-primary file:px-4 file:py-2 file:text-white file:hover:bg-primary-dark"
-              />
+              <div
+                {...appendDrop.getRootProps()}
+                className={`mt-1 w-full cursor-pointer rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
+                  appendDrop.isDragActive
+                    ? "border-primary bg-primary/10"
+                    : "border-onehope-gray hover:border-primary/50"
+                }`}
+              >
+                <input {...appendDrop.getInputProps()} />
+                {appendDrop.isDragActive ? (
+                  <p className="text-primary">Drop files here…</p>
+                ) : (
+                  <p className="text-gray-600">
+                    Drag and drop files here, or click to select
+                    {appendFileEntries.length > 0 && (
+                      <span className="block mt-1 text-sm text-onehope-black">
+                        ✓ {appendFileEntries.length} file(s) selected
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
               {appendFileEntries.length > 0 && (
                 <div className="mt-3 space-y-2">
                   <p className="text-sm font-medium text-onehope-black">
@@ -581,21 +636,28 @@ export default function AdminForm({
               <label className="block text-sm font-medium text-onehope-black">
                 Files <span className="text-red-600">*</span>
               </label>
-              <input
-                type="file"
-                multiple
-                onChange={(e) => {
-                  const selected = Array.from(e.target.files || []);
-                  setFileEntries(
-                    selected.map((f) => ({
-                      file: f,
-                      fileType: suggestFileType(f.name),
-                      title: fileNameWithoutExt(f.name),
-                    }))
-                  );
-                }}
-                className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 file:mr-4 file:rounded file:border-0 file:bg-primary file:px-4 file:py-2 file:text-white file:hover:bg-primary-dark"
-              />
+              <div
+                {...groupDrop.getRootProps()}
+                className={`mt-1 w-full cursor-pointer rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
+                  groupDrop.isDragActive
+                    ? "border-primary bg-primary/10"
+                    : "border-onehope-gray hover:border-primary/50"
+                }`}
+              >
+                <input {...groupDrop.getInputProps()} />
+                {groupDrop.isDragActive ? (
+                  <p className="text-primary">Drop files here…</p>
+                ) : (
+                  <p className="text-gray-600">
+                    Drag and drop files here, or click to select
+                    {fileEntries.length > 0 && (
+                      <span className="block mt-1 text-sm text-onehope-black">
+                        ✓ {fileEntries.length} file(s) selected
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
               {fileEntries.length > 0 && (
                 <div className="mt-3 space-y-2">
                   <p className="text-sm font-medium text-onehope-black">
@@ -652,12 +714,26 @@ export default function AdminForm({
                 Optional: set cover photo for this collection
               </h3>
               <p className="mt-1 text-sm text-gray-600">{COVER_SIZE_GUIDE}</p>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(e) => setCoverImage(e.target.files?.[0] ?? null)}
-                className="mt-2 w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:hover:bg-primary-dark"
-              />
+              <div
+                {...coverDrop.getRootProps()}
+                className={`mt-2 cursor-pointer rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
+                  coverDrop.isDragActive
+                    ? "border-primary bg-primary/10"
+                    : "border-onehope-gray hover:border-primary/50"
+                }`}
+              >
+                <input {...coverDrop.getInputProps()} />
+                {coverDrop.isDragActive ? (
+                  <p className="text-sm text-primary">Drop the image here…</p>
+                ) : (
+                  <p className="text-sm text-gray-600">
+                    Drag and drop an image here, or click to select (JPEG, PNG, WebP)
+                    {coverImage && (
+                      <span className="block mt-1 text-onehope-black">✓ {coverImage.name}</span>
+                    )}
+                  </p>
+                )}
+              </div>
               {coverImage && (
                 <p className="mt-1 text-xs text-gray-500">
                   Cover: {coverImage.name}
