@@ -73,6 +73,7 @@ export default function AdminForm({
   const [appendCollectionId, setAppendCollectionId] = useState("");
   const [appendFileEntries, setAppendFileEntries] = useState<Array<{ file: File; fileType: string; title: string }>>([]);
   const [coverImage, setCoverImage] = useState<File | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string>("");
@@ -85,6 +86,15 @@ export default function AdminForm({
       .catch(() => setSections([]));
   }, []);
 
+  useEffect(() => {
+    if (coverImage) {
+      const url = URL.createObjectURL(coverImage);
+      setCoverPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setCoverPreviewUrl(null);
+  }, [coverImage]);
+
   const onSingleDrop = useCallback((acceptedFiles: File[]) => {
     const f = acceptedFiles[0] ?? null;
     setFile(f);
@@ -93,24 +103,22 @@ export default function AdminForm({
   const singleDrop = useDropzone({ onDrop: onSingleDrop, multiple: false });
 
   const onAppendDrop = useCallback((acceptedFiles: File[]) => {
-    setAppendFileEntries(
-      acceptedFiles.map((f) => ({
-        file: f,
-        fileType: suggestFileType(f.name),
-        title: fileNameWithoutExt(f.name),
-      }))
-    );
+    const newEntries = acceptedFiles.map((f) => ({
+      file: f,
+      fileType: suggestFileType(f.name),
+      title: fileNameWithoutExt(f.name),
+    }));
+    setAppendFileEntries((prev) => [...prev, ...newEntries]);
   }, []);
   const appendDrop = useDropzone({ onDrop: onAppendDrop, multiple: true });
 
   const onGroupDrop = useCallback((acceptedFiles: File[]) => {
-    setFileEntries(
-      acceptedFiles.map((f) => ({
-        file: f,
-        fileType: suggestFileType(f.name),
-        title: fileNameWithoutExt(f.name),
-      }))
-    );
+    const newEntries = acceptedFiles.map((f) => ({
+      file: f,
+      fileType: suggestFileType(f.name),
+      title: fileNameWithoutExt(f.name),
+    }));
+    setFileEntries((prev) => [...prev, ...newEntries]);
   }, []);
   const groupDrop = useDropzone({ onDrop: onGroupDrop, multiple: true });
 
@@ -530,10 +538,10 @@ export default function AdminForm({
               >
                 <input {...appendDrop.getInputProps()} />
                 {appendDrop.isDragActive ? (
-                  <p className="text-primary">Drop files here…</p>
+                  <p className="text-primary">Drop file(s) here…</p>
                 ) : (
                   <p className="text-gray-600">
-                    Drag and drop files here, or click to select
+                    Drag and drop files here one at a time, or click to select
                     {appendFileEntries.length > 0 && (
                       <span className="block mt-1 text-sm text-onehope-black">
                         ✓ {appendFileEntries.length} file(s) selected
@@ -646,10 +654,10 @@ export default function AdminForm({
               >
                 <input {...groupDrop.getInputProps()} />
                 {groupDrop.isDragActive ? (
-                  <p className="text-primary">Drop files here…</p>
+                  <p className="text-primary">Drop file(s) here…</p>
                 ) : (
                   <p className="text-gray-600">
-                    Drag and drop files here, or click to select
+                    Drag and drop files here one at a time, or click to select
                     {fileEntries.length > 0 && (
                       <span className="block mt-1 text-sm text-onehope-black">
                         ✓ {fileEntries.length} file(s) selected
@@ -717,28 +725,35 @@ export default function AdminForm({
               <div
                 {...coverDrop.getRootProps()}
                 className={`mt-2 cursor-pointer rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
-                  coverDrop.isDragActive
-                    ? "border-primary bg-primary/10"
-                    : "border-onehope-gray hover:border-primary/50"
+                  coverImage
+                    ? "border-green-500 bg-green-50"
+                    : coverDrop.isDragActive
+                      ? "border-primary bg-primary/10"
+                      : "border-onehope-gray hover:border-primary/50"
                 }`}
               >
                 <input {...coverDrop.getInputProps()} />
                 {coverDrop.isDragActive ? (
                   <p className="text-sm text-primary">Drop the image here…</p>
+                ) : coverImage && coverPreviewUrl ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-green-700">✓ Cover photo set</p>
+                    <div className="mx-auto flex max-w-[200px] items-center gap-3 rounded-lg border border-green-200 bg-white p-2">
+                      <img
+                        src={coverPreviewUrl}
+                        alt="Cover preview"
+                        className="h-20 w-20 shrink-0 rounded object-cover"
+                      />
+                      <span className="truncate text-sm text-onehope-black">{coverImage.name}</span>
+                    </div>
+                    <p className="text-xs text-gray-500">Click or drop a new image to replace</p>
+                  </div>
                 ) : (
                   <p className="text-sm text-gray-600">
                     Drag and drop an image here, or click to select (JPEG, PNG, WebP)
-                    {coverImage && (
-                      <span className="block mt-1 text-onehope-black">✓ {coverImage.name}</span>
-                    )}
                   </p>
                 )}
               </div>
-              {coverImage && (
-                <p className="mt-1 text-xs text-gray-500">
-                  Cover: {coverImage.name}
-                </p>
-              )}
             </div>
           </>
         )}
