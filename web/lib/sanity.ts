@@ -492,3 +492,23 @@ export async function updateCollectionResource(
   await sanityClientWithToken.patch(id).set(set).commit();
   return true;
 }
+
+/** Remove a resource from its collection and delete the collectionResource document. */
+export async function deleteCollectionResource(resourceId: string): Promise<boolean> {
+  if (!sanityClientWithToken) return false;
+  const doc = await sanityClientWithToken.fetch<{
+    _id: string;
+    resources?: { _ref: string }[];
+  } | null>(
+    `*[_type == "resourceCollection" && references($id)][0]{ _id, "resources": resources }`,
+    { id: resourceId }
+  );
+  if (doc?.resources) {
+    const refs = doc.resources
+      .filter((r) => r._ref !== resourceId)
+      .map((r) => ({ _type: "reference" as const, _ref: r._ref, _key: r._ref }));
+    await sanityClientWithToken.patch(doc._id).set({ resources: refs }).commit();
+  }
+  await sanityClientWithToken.delete(resourceId);
+  return true;
+}

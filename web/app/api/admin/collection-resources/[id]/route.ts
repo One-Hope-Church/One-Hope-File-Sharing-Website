@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { updateCollectionResource } from "@/lib/sanity";
+import { updateCollectionResource, deleteCollectionResource } from "@/lib/sanity";
 
 export async function PATCH(
   request: NextRequest,
@@ -35,6 +35,25 @@ export async function PATCH(
       { error: "Failed to update" },
       { status: 500 }
     );
+  }
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (!session.isLoggedIn || session.user?.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const { id } = await params;
+  if (!id) {
+    return NextResponse.json({ error: "id required" }, { status: 400 });
+  }
+  const ok = await deleteCollectionResource(id);
+  if (!ok) {
+    return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
 }

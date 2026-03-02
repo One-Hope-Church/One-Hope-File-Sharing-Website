@@ -27,6 +27,7 @@ export default function CollectionManageClient({
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editFileType, setEditFileType] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!collectionId) {
@@ -91,6 +92,23 @@ export default function CollectionManageClient({
     await reorder(i, i + 1);
   }
 
+  async function deleteResource(id: string) {
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/collection-resources/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Delete failed");
+      }
+      setResources((prev) => prev.filter((r) => r._id !== id));
+      setDeletingId(null);
+      setMessage({ type: "ok", text: "File removed from collection." });
+      router.refresh();
+    } catch (err) {
+      setMessage({ type: "err", text: err instanceof Error ? err.message : "Delete failed" });
+    }
+  }
+
   async function reorder(from: number, to: number) {
     const next = [...resources];
     const [removed] = next.splice(from, 1);
@@ -124,6 +142,7 @@ export default function CollectionManageClient({
           onChange={(e) => {
             setCollectionId(e.target.value);
             setEditingId(null);
+            setDeletingId(null);
           }}
           className="mt-1 w-full max-w-md rounded-lg border border-onehope-gray px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         >
@@ -236,13 +255,41 @@ export default function CollectionManageClient({
                       </span>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => startEdit(r)}
-                    className="shrink-0 rounded border border-onehope-gray px-2 py-1 text-sm hover:bg-onehope-info/30"
-                  >
-                    Edit
-                  </button>
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(r)}
+                      className="rounded border border-onehope-gray px-2 py-1 text-sm hover:bg-onehope-info/30"
+                    >
+                      Edit
+                    </button>
+                    {deletingId === r._id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => deleteResource(r._id)}
+                          className="rounded border border-red-600 bg-red-600 px-2 py-1 text-sm text-white hover:bg-red-700"
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingId(null)}
+                          className="rounded border border-onehope-gray px-2 py-1 text-sm hover:bg-onehope-info/30"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDeletingId(r._id)}
+                        className="rounded border border-red-300 px-2 py-1 text-sm text-red-600 hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </>
               )}
             </li>
