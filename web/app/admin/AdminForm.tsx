@@ -71,6 +71,7 @@ export default function AdminForm({
   const [fileEntries, setFileEntries] = useState<Array<{ file: File; fileType: string; title: string }>>([]);
   const [title, setTitle] = useState("");
   const [groupTitle, setGroupTitle] = useState("");
+  const [collectionDescription, setCollectionDescription] = useState("");
   const [description, setDescription] = useState("");
   const uploadsFolder = "uploads";
   const [sectionId, setSectionId] = useState("");
@@ -262,6 +263,7 @@ export default function AdminForm({
           title: groupTitle.trim(),
           sectionId,
           collectionResourceIds,
+          description: collectionDescription.trim() || undefined,
         }),
       });
       if (!collectionRes.ok) {
@@ -290,6 +292,7 @@ export default function AdminForm({
 
       setMessage({ type: "ok", text: successText });
       setGroupTitle("");
+      setCollectionDescription("");
       setFileEntries([]);
       setCoverImage(null);
     } catch (err) {
@@ -622,6 +625,18 @@ export default function AdminForm({
               <p className="mt-1 text-sm text-gray-500">
                 A new collection will be created with this title. All selected files become resources in the collection.
               </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-onehope-black">
+                Collection description (optional)
+              </label>
+              <textarea
+                value={collectionDescription}
+                onChange={(e) => setCollectionDescription(e.target.value)}
+                rows={2}
+                placeholder="Short description for the collection"
+                className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-onehope-black">
