@@ -432,6 +432,16 @@ export async function setCollectionHeroImage(
   return true;
 }
 
+/** Update a collection description (requires SANITY_API_TOKEN). */
+export async function updateCollectionDescription(
+  collectionId: string,
+  description: string
+): Promise<boolean> {
+  if (!sanityClientWithToken) return false;
+  await sanityClientWithToken.patch(collectionId).set({ description }).commit();
+  return true;
+}
+
 /** Append resource IDs to a collection's resources array (requires SANITY_API_TOKEN). */
 export async function appendResourcesToCollection(
   collectionId: string,

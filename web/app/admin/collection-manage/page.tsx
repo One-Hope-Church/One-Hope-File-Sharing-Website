@@ -8,6 +8,8 @@ export default async function CollectionManagePage() {
         _id: String(c._id),
         title: String(c.title ?? "Untitled"),
         slug: c.slug != null ? String(c.slug) : null,
+        description: c.description != null ? String(c.description) : "",
+        heroImage: typeof c.heroImage === "string" ? c.heroImage : null,
       }))
     : [];
 

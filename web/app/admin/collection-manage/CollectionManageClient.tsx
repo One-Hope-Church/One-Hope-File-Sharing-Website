@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useDropzone } from "react-dropzone";
 
 const FILE_TYPES = [
   { value: "pdf", label: "PDF" },
@@ -12,8 +13,30 @@ const FILE_TYPES = [
   { value: "other", label: "Other" },
 ];
 
-type Collection = { _id: string; title: string; slug?: string | null };
+type Collection = {
+  _id: string;
+  title: string;
+  slug?: string | null;
+  description?: string;
+  heroImage?: string | null;
+};
 type Resource = { _id: string; title?: string; description?: string; fileType?: string };
+
+function fileNameWithoutExt(name: string): string {
+  const i = name.lastIndexOf(".");
+  return i > 0 ? name.slice(0, i) : name;
+}
+
+function suggestFileType(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  if (["pdf"].includes(ext)) return "pdf";
+  if (["mp4", "mov", "webm", "m4v", "avi", "mkv"].includes(ext)) return "video";
+  if (["jpg", "jpeg", "png", "gif", "webp", "heic"].includes(ext)) return "image";
+  if (["doc", "docx", "rtf", "odt"].includes(ext)) return "word";
+  if (["psd", "ai", "eps", "indd", "xd", "fig"].includes(ext)) return "design";
+  if (["zip"].includes(ext)) return "zip";
+  return "";
+}
 
 export default function CollectionManageClient({
   collections,
@@ -31,6 +54,22 @@ export default function CollectionManageClient({
   const [editFileType, setEditFileType] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const selectedCollection = collections.find((c) => c._id === collectionId) ?? null;
+  const [collectionDescDraft, setCollectionDescDraft] = useState("");
+
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+
+  const uploadsFolder = "uploads";
+
+  const [addFileEntries, setAddFileEntries] = useState<Array<{ file: File; fileType: string; title: string }>>(
+    []
+  );
+  const [addUploading, setAddUploading] = useState(false);
+  const [addUploadProgress, setAddUploadProgress] = useState<number | null>(null);
+  const [addUploadStatus, setAddUploadStatus] = useState("");
+
   useEffect(() => {
     if (!collectionId) {
       setResources([]);
@@ -45,6 +84,26 @@ export default function CollectionManageClient({
       .catch(() => setResources([]))
       .finally(() => setLoading(false));
   }, [collectionId]);
+
+  useEffect(() => {
+    // Keep textarea in sync with currently selected collection.
+    setCollectionDescDraft(selectedCollection?.description ?? "");
+    setCoverFile(null);
+    setCoverPreviewUrl(null);
+    setAddFileEntries([]);
+    setAddUploadProgress(null);
+    setAddUploadStatus("");
+  }, [collectionId, collections, selectedCollection?.description]);
+
+  useEffect(() => {
+    if (!coverFile) {
+      setCoverPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(coverFile);
+    setCoverPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [coverFile]);
 
   function startEdit(r: Resource) {
     setEditingId(r._id);
@@ -135,6 +194,186 @@ export default function CollectionManageClient({
     }
   }
 
+  async function uploadWithProgress(
+    url: string,
+    file: File,
+    onProgress: (pct: number) => void
+  ): Promise<Response> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", url);
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => resolve(new Response(xhr.responseText, { status: xhr.status }));
+      xhr.onerror = () => reject(new Error("Upload failed"));
+      xhr.send(file);
+    });
+  }
+
+  async function saveCollectionDescription() {
+    if (!collectionId) return;
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/collections/${collectionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: collectionDescDraft }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed to update description");
+      }
+      setMessage({ type: "ok", text: "Collection description updated." });
+      router.refresh();
+    } catch (err) {
+      setMessage({ type: "err", text: err instanceof Error ? err.message : "Failed to update description" });
+    }
+  }
+
+  async function uploadCover() {
+    if (!collectionId || !coverFile) {
+      setMessage({ type: "err", text: "Select a cover image first." });
+      return;
+    }
+    setMessage(null);
+    setCoverUploading(true);
+    try {
+      const formData = new FormData();
+      formData.set("collectionId", collectionId);
+      formData.set("image", coverFile);
+      const res = await fetch("/api/admin/collection-cover", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error ?? "Upload failed");
+      }
+      setMessage({ type: "ok", text: "Collection cover photo updated." });
+      setCoverFile(null);
+      router.refresh();
+    } catch (err) {
+      setMessage({ type: "err", text: err instanceof Error ? err.message : "Upload failed" });
+    } finally {
+      setCoverUploading(false);
+    }
+  }
+
+  const onCoverDrop = useCallback((acceptedFiles: File[]) => {
+    setCoverFile(acceptedFiles[0] ?? null);
+  }, []);
+
+  const coverDropzone = useDropzone({
+    onDrop: onCoverDrop,
+    multiple: false,
+    accept: {
+      "image/jpeg": [".jpg", ".jpeg"],
+      "image/png": [".png"],
+      "image/webp": [".webp"],
+    },
+  });
+
+  const onAddDrop = useCallback((acceptedFiles: File[]) => {
+    const newEntries = acceptedFiles.map((f) => ({
+      file: f,
+      fileType: suggestFileType(f.name) || "other",
+      title: fileNameWithoutExt(f.name),
+    }));
+    setAddFileEntries((prev) => [...prev, ...newEntries]);
+  }, []);
+
+  const addDropzone = useDropzone({
+    onDrop: onAddDrop,
+    multiple: true,
+  });
+
+  async function uploadAddFiles() {
+    if (!collectionId) {
+      setMessage({ type: "err", text: "Choose a collection first." });
+      return;
+    }
+    if (addFileEntries.length === 0) {
+      setMessage({ type: "err", text: "Add at least one file." });
+      return;
+    }
+
+    setMessage(null);
+    setAddUploading(true);
+    setAddUploadProgress(0);
+    setAddUploadStatus("");
+
+    const collectionResourceIds: string[] = [];
+    try {
+      for (let i = 0; i < addFileEntries.length; i++) {
+        const entry = addFileEntries[i];
+        const f = entry.file;
+        const ft = entry.fileType || undefined;
+
+        setAddUploadStatus(`Uploading file ${i + 1} of ${addFileEntries.length}…`);
+        setAddUploadProgress(0);
+
+        const presignRes = await fetch("/api/upload/presign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: f.name,
+            contentType: f.type || "application/octet-stream",
+            collectionId: uploadsFolder,
+          }),
+        });
+        if (!presignRes.ok) {
+          const data = await presignRes.json().catch(() => ({}));
+          throw new Error(data.error ?? "Failed to get upload URL");
+        }
+        const { url, key } = await presignRes.json();
+
+        const putRes = await uploadWithProgress(url, f, setAddUploadProgress);
+        if (!putRes.ok) throw new Error(`Upload failed for ${f.name}`);
+
+        const title = entry.title?.trim() || fileNameWithoutExt(f.name) || `Item ${i + 1}`;
+        const createRes = await fetch("/api/admin/collection-resources", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            fileType: ft,
+            s3Key: key,
+          }),
+        });
+        if (!createRes.ok) {
+          const data = await createRes.json().catch(() => ({}));
+          throw new Error(data.error ?? "Failed to create collection item");
+        }
+        const data = await createRes.json().catch(() => ({}));
+        if (data.collectionResourceId) collectionResourceIds.push(data.collectionResourceId);
+      }
+
+      const appendRes = await fetch("/api/admin/collections/append-resources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ collectionId, resourceIds: collectionResourceIds }),
+      });
+      const appendData = await appendRes.json().catch(() => ({}));
+      if (!appendRes.ok) {
+        throw new Error(appendData.error ?? "Files uploaded but failed to add to collection");
+      }
+
+      setMessage({ type: "ok", text: `${addFileEntries.length} file(s) added to the collection.` });
+      setAddFileEntries([]);
+      setAddUploadProgress(null);
+      setAddUploadStatus("");
+      router.refresh();
+    } catch (err) {
+      setMessage({ type: "err", text: err instanceof Error ? err.message : "Something went wrong" });
+    } finally {
+      setAddUploading(false);
+      setAddUploadProgress(null);
+      setAddUploadStatus("");
+    }
+  }
+
   return (
     <div className="mt-6 space-y-4">
       <div>
@@ -156,6 +395,170 @@ export default function CollectionManageClient({
           ))}
         </select>
       </div>
+
+      {collectionId && (
+        <div className="space-y-4 rounded-lg border border-onehope-gray bg-white p-4">
+          <div className="space-y-2">
+            <h2 className="text-sm font-semibold text-onehope-black">Collection settings</h2>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-onehope-black">Collection photo</label>
+                <div className="space-y-2">
+                  {(coverPreviewUrl || selectedCollection?.heroImage) && (
+                    <img
+                      src={coverPreviewUrl ?? selectedCollection?.heroImage ?? ""}
+                      alt="Collection cover preview"
+                      className="h-24 w-24 rounded object-cover"
+                    />
+                  )}
+                  <div
+                    {...coverDropzone.getRootProps()}
+                    className={`cursor-pointer rounded-lg border-2 border-dashed px-4 py-4 text-center transition-colors ${
+                      coverDropzone.isDragActive ? "border-primary bg-primary/10" : "border-onehope-gray hover:border-primary/50"
+                    }`}
+                  >
+                    <input {...coverDropzone.getInputProps()} />
+                    {coverDropzone.isDragActive ? (
+                      <p className="text-primary">Drop the cover image here…</p>
+                    ) : (
+                      <p className="text-gray-600">
+                        Drag and drop a new cover, or click to select
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={uploadCover}
+                    disabled={coverUploading || !coverFile}
+                    className="w-full rounded-lg bg-primary py-2 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
+                  >
+                    {coverUploading ? "Uploading…" : coverFile ? "Update cover photo" : "Select an image"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-onehope-black">
+                  Collection description
+                </label>
+                <textarea
+                  value={collectionDescDraft}
+                  onChange={(e) => setCollectionDescDraft(e.target.value)}
+                  rows={4}
+                  placeholder="Describe this collection…"
+                  className="w-full rounded-lg border border-onehope-gray px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button
+                  type="button"
+                  onClick={saveCollectionDescription}
+                  disabled={coverUploading || addUploading}
+                  className="w-full rounded-lg bg-primary py-2 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
+                >
+                  Save description
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-onehope-black">Add new files to this collection</h3>
+            <div
+              {...addDropzone.getRootProps()}
+              className={`cursor-pointer rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
+                addDropzone.isDragActive
+                  ? "border-primary bg-primary/10"
+                  : "border-onehope-gray hover:border-primary/50"
+              }`}
+            >
+              <input {...addDropzone.getInputProps()} />
+              {addDropzone.isDragActive ? (
+                <p className="text-primary">Drop file(s) here…</p>
+              ) : (
+                <p className="text-gray-600">
+                  Drag file(s) here one at a time, or click to select
+                </p>
+              )}
+            </div>
+
+            {addFileEntries.length > 0 && (
+              <div className="space-y-2">
+                {addFileEntries.map((entry, i) => (
+                  <div
+                    key={`${i}-${entry.file.name}`}
+                    className="flex flex-col gap-2 rounded-lg border border-onehope-gray bg-onehope-info/20 p-3"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-0 truncate text-xs text-gray-600">
+                        File: {entry.file.name}
+                      </span>
+                      <select
+                        value={entry.fileType}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setAddFileEntries((prev) =>
+                            prev.map((p, j) => (j === i ? { ...p, fileType: v } : p))
+                          );
+                        }}
+                        className="rounded border border-onehope-gray bg-white px-2 py-1 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {FILE_TYPES.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600">
+                        Display name
+                      </label>
+                      <input
+                        type="text"
+                        value={entry.title}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setAddFileEntries((prev) =>
+                            prev.map((p, j) => (j === i ? { ...p, title: v } : p))
+                          );
+                        }}
+                        className="mt-0.5 w-full rounded border border-onehope-gray bg-white px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAddFileEntries((prev) => prev.filter((_, j) => j !== i))}
+                        className="rounded border border-onehope-gray px-2 py-1 text-sm hover:bg-onehope-info/30"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {addUploading && (
+              <div className="rounded-lg bg-onehope-info/20 p-3 text-sm text-gray-700">
+                {addUploadStatus}
+                {typeof addUploadProgress === "number" && (
+                  <div className="mt-1 text-gray-600">{addUploadProgress}%</div>
+                )}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={uploadAddFiles}
+              disabled={addUploading || addFileEntries.length === 0}
+              className="w-full rounded-lg bg-primary py-2 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
+            >
+              {addUploading ? "Uploading…" : `Add ${addFileEntries.length} file(s)`}
+            </button>
+          </div>
+        </div>
+      )}
 
       {message && (
         <div
