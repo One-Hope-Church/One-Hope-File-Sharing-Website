@@ -7,6 +7,8 @@ const FILE_TYPES = [
   { value: "pdf", label: "PDF" },
   { value: "video", label: "Video" },
   { value: "image", label: "Image" },
+  { value: "word", label: "Word" },
+  { value: "design", label: "Adobe Design (PS/AI/INDD)" },
   { value: "other", label: "Other" },
 ];
 

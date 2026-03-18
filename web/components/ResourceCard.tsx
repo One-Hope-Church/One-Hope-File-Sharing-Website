@@ -135,7 +135,17 @@ export default function ResourceCard({
   }
 
   const icon =
-    fileType === "video" ? "▶" : fileType === "pdf" ? "📄" : fileType === "zip" ? "📦" : "📎";
+    fileType === "video"
+      ? "▶"
+      : fileType === "pdf"
+        ? "📄"
+        : fileType === "zip"
+          ? "📦"
+          : fileType === "word"
+            ? "📝"
+            : fileType === "design"
+              ? "🎨"
+              : "📎";
   const canPreview = fileType === "video" || fileType === "pdf" || fileType === "image";
 
   return (

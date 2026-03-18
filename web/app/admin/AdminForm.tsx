@@ -9,6 +9,8 @@ const FILE_TYPES = [
   { value: "pdf", label: "PDF" },
   { value: "video", label: "Video" },
   { value: "image", label: "Image" },
+  { value: "word", label: "Word" },
+  { value: "design", label: "Adobe Design (PS/AI/INDD)" },
   { value: "zip", label: "ZIP" },
   { value: "other", label: "Other" },
 ];
@@ -21,6 +23,8 @@ function suggestFileType(filename: string): string {
   if (["pdf"].includes(ext)) return "pdf";
   if (["mp4", "mov", "webm", "m4v", "avi", "mkv"].includes(ext)) return "video";
   if (["jpg", "jpeg", "png", "gif", "webp", "heic"].includes(ext)) return "image";
+  if (["doc", "docx", "rtf", "odt"].includes(ext)) return "word";
+  if (["psd", "ai", "eps", "indd", "xd", "fig"].includes(ext)) return "design";
   if (["zip"].includes(ext)) return "zip";
   return "";
 }
