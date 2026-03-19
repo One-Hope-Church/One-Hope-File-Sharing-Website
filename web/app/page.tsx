@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { getFeaturedCollectionsForHome, getRecentlyAddedCollections } from "@/lib/sanity";
 import { getSavedResourceIdsForUser } from "@/lib/supabase-saved-resources";
 import CollectionCard from "@/components/CollectionCard";
+import FeaturedCarousel from "@/components/FeaturedCarousel";
 
 export default async function HomePage() {
   const session = await getSession();
@@ -47,20 +48,10 @@ export default async function HomePage() {
           Featured Resources
         </h2>
         {Array.isArray(featuredCollections) && featuredCollections.length > 0 ? (
-          <div className="space-y-4">
-            {featuredCollections.map((c: Record<string, unknown>) => (
-              <CollectionCard
-                key={String(c._id)}
-                id={String(c._id)}
-                title={String(c.title || "Untitled")}
-                description={c.description ? String(c.description) : undefined}
-                heroImage={c.heroImage ? String(c.heroImage) : null}
-                slug={c.slug ? String(c.slug) : undefined}
-                isSaved={savedIds.includes(String(c._id))}
-                layout="horizontal"
-              />
-            ))}
-          </div>
+          <FeaturedCarousel
+            collections={featuredCollections as Array<Record<string, unknown>>}
+            savedIds={savedIds}
+          />
         ) : (
           <div className="rounded-xl border border-onehope-gray bg-onehope-info/30 p-8 text-center">
             <p className="text-4xl text-onehope-black/40" aria-hidden>▦</p>
