@@ -205,7 +205,7 @@ function searchPattern(q: string): string {
   return `*${trimmed}*`;
 }
 
-/** Search collections and standalone resources. Collection items (collectionResource) are not searched—only visible inside their collection. */
+/** Search collections (including by files inside them) and standalone resources. When a file inside a collection matches, the collection is shown—not the individual file. */
 export async function searchContent(q: string): Promise<{
   collections: Array<Record<string, unknown>>;
   resources: Array<Record<string, unknown>>;
@@ -219,7 +219,11 @@ export async function searchContent(q: string): Promise<{
   }
   const [collections, resources] = await Promise.all([
     sanityClient.fetch<Array<Record<string, unknown>>>(
-      `*[_type == "resourceCollection" && (lower(title) match $pattern || (description != null && lower(description) match $pattern))] | order(title asc) { ${collectionFields} }`,
+      `*[_type == "resourceCollection" && (
+        lower(title) match $pattern ||
+        (description != null && lower(description) match $pattern) ||
+        length(resources[]->[lower(title) match $pattern || (description != null && lower(description) match $pattern)]) > 0
+      )] | order(title asc) { ${collectionFields} }`,
       { pattern }
     ),
     sanityClient.fetch<Array<Record<string, unknown>>>(
