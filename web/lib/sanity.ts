@@ -200,14 +200,28 @@ export async function getDownloadableById(id: string): Promise<{ s3Key: string }
 
 const MIN_SEARCH_LENGTH = 2;
 
-/** Build a match pattern for GROQ text search (case-insensitive contains). Requires at least MIN_SEARCH_LENGTH chars to avoid overly broad matches. */
-function searchPattern(q: string): string {
-  const trimmed = q.trim().replace(/\*/g, "").toLowerCase();
-  if (trimmed.length < MIN_SEARCH_LENGTH) return "";
-  return `*${trimmed}*`;
+/**
+ * Split query into words and build patterns. Requires ALL words to match (AND logic)
+ * to avoid matches on common single words like "time" when searching "first time".
+ * Only searches titles (friendly names), not descriptions or file contents.
+ */
+function searchPatterns(q: string): string[] {
+  const words = q
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.replace(/\*/g, ""))
+    .filter((w) => w.length >= MIN_SEARCH_LENGTH);
+  return words.map((w) => `*${w}*`);
 }
 
-/** Search collections (including by files inside them) and standalone resources. When a file inside a collection matches, the collection is shown—not the individual file. */
+/** Build a GROQ condition requiring all patterns to match in the given field. */
+function allPatternsMatch(field: string, patterns: string[]): string {
+  if (patterns.length === 0) return "false";
+  return patterns.map((_, i) => `lower(${field}) match $p${i}`).join(" && ");
+}
+
+/** Search collections (including by file titles inside them) and standalone resources. Only matches on titles—not descriptions or PDF content. */
 export async function searchContent(q: string): Promise<{
   collections: Array<Record<string, unknown>>;
   resources: Array<Record<string, unknown>>;
@@ -215,22 +229,27 @@ export async function searchContent(q: string): Promise<{
   if (!projectId || projectId === "placeholder") {
     return { collections: [], resources: [] };
   }
-  const pattern = searchPattern(q);
-  if (!pattern) {
+  const patterns = searchPatterns(q);
+  if (patterns.length === 0) {
     return { collections: [], resources: [] };
   }
+
+  const params: Record<string, string> = Object.fromEntries(patterns.map((p, i) => [`p${i}`, p]));
+
+  const collectionTitleMatch = allPatternsMatch("title", patterns);
+  const fileTitleMatch = allPatternsMatch("title", patterns);
+
   const [collections, resources] = await Promise.all([
     sanityClient.fetch<Array<Record<string, unknown>>>(
       `*[_type == "resourceCollection" && (
-        lower(title) match $pattern ||
-        (description != null && lower(description) match $pattern) ||
-        length(resources[]->[lower(title) match $pattern || (description != null && lower(description) match $pattern)]) > 0
+        ${collectionTitleMatch} ||
+        length(resources[]->[${fileTitleMatch}]) > 0
       )] | order(title asc) { ${collectionFields} }`,
-      { pattern }
+      params
     ),
     sanityClient.fetch<Array<Record<string, unknown>>>(
-      `*[_type == "resource" && (lower(title) match $pattern || (description != null && lower(description) match $pattern))] | order(title asc) { ${resourceFields} }`,
-      { pattern }
+      `*[_type == "resource" && ${allPatternsMatch("title", patterns)}] | order(title asc) { ${resourceFields} }`,
+      params
     ),
   ]);
   return { collections, resources };
