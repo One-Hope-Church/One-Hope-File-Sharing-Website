@@ -8,13 +8,16 @@ interface TopBarProps {
   onMenuClick?: () => void;
 }
 
-function useDebouncedCallback<T extends (...args: unknown[]) => void>(fn: T, delay: number) {
+function useDebouncedCallback<Args extends unknown[]>(
+  fn: (...args: Args) => void,
+  delay: number
+): (...args: Args) => void {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fnRef = useRef(fn);
   fnRef.current = fn;
 
   const debounced = useCallback(
-    (...args: Parameters<T>) => {
+    (...args: Args) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         timeoutRef.current = null;
