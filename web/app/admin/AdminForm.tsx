@@ -180,7 +180,7 @@ export default function AdminForm({
       setUploadStatus("Creating resource…");
       setUploadProgress(null);
 
-      let thumbnailUrl: string | undefined = undefined;
+      let thumbnailAssetId: string | undefined = undefined;
       if (resourceThumbnailImage) {
         setUploadStatus("Uploading cover photo…");
         const thumbForm = new FormData();
@@ -193,8 +193,8 @@ export default function AdminForm({
         if (!thumbRes.ok) {
           throw new Error(thumbData.error ?? "Thumbnail upload failed");
         }
-        if (typeof thumbData.thumbnailUrl === "string") {
-          thumbnailUrl = thumbData.thumbnailUrl;
+        if (typeof thumbData.assetId === "string") {
+          thumbnailAssetId = thumbData.assetId;
         }
       }
 
@@ -205,7 +205,7 @@ export default function AdminForm({
           title: title.trim(),
           description: description.trim() || undefined,
           fileType: fileType || undefined,
-          thumbnailUrl,
+          thumbnailAssetId,
           s3Key: key,
           sectionId: sectionId || undefined,
         }),

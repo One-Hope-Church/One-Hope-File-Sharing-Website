@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
   }
   const description = typeof body.description === "string" ? body.description.trim() : undefined;
   const fileType = typeof body.fileType === "string" ? body.fileType.trim() || undefined : undefined;
-  const thumbnailUrl = typeof body.thumbnailUrl === "string" ? body.thumbnailUrl.trim() || undefined : undefined;
+  const thumbnailAssetId = typeof body.thumbnailAssetId === "string" ? body.thumbnailAssetId.trim() || undefined : undefined;
   const sectionId = typeof body.sectionId === "string" ? body.sectionId.trim() || undefined : undefined;
   const order = typeof body.order === "number" ? body.order : undefined;
 
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     title,
     description,
     fileType,
-    thumbnailUrl,
+    thumbnailAssetId,
     s3Key,
     sectionId,
     order,

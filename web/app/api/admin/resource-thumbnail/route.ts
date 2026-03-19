@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { uploadImageAssetWithUrl } from "@/lib/sanity";
+import { uploadImageAsset } from "@/lib/sanity";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SIZE_MB = 5;
@@ -32,11 +32,11 @@ export async function POST(request: NextRequest) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const uploaded = await uploadImageAssetWithUrl(buffer, file.name, file.type);
-  if (!uploaded) {
+  const assetId = await uploadImageAsset(buffer, file.name, file.type);
+  if (!assetId) {
     return NextResponse.json({ error: "Failed to upload thumbnail" }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, thumbnailUrl: uploaded.url });
+  return NextResponse.json({ ok: true, assetId });
 }
 

@@ -42,10 +42,13 @@ export const resource = defineType({
       validation: (Rule) => Rule.required(),
     }),
     defineField({
-      name: "thumbnailUrl",
-      title: "Thumbnail URL",
-      description: "Optional image URL for the card",
-      type: "url",
+      name: "thumbnail",
+      title: "Thumbnail / cover photo",
+      description: "Optional image for the card. Upload from your computer or select from Sanity assets.",
+      type: "image",
+      options: {
+        hotspot: true,
+      },
     }),
     defineField({
       name: "section",

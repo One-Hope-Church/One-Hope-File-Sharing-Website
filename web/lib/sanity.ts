@@ -38,7 +38,7 @@ const resourceFields = `
   description,
   fileType,
   s3Key,
-  thumbnailUrl,
+  "thumbnailUrl": coalesce(thumbnail.asset->url, thumbnailUrl),
   order
 `;
 
@@ -171,7 +171,7 @@ const savedItemFields = `
   title,
   description,
   fileType,
-  thumbnailUrl,
+  "thumbnailUrl": coalesce(thumbnail.asset->url, thumbnailUrl),
   "heroImage": heroImage.asset->url,
   "slug": slug.current
 `;
@@ -235,7 +235,7 @@ export async function createResource(params: {
   title: string;
   description?: string;
   fileType?: string;
-  thumbnailUrl?: string;
+  thumbnailAssetId?: string;
   s3Key: string;
   sectionId?: string;
   order?: number;
@@ -246,7 +246,12 @@ export async function createResource(params: {
     title: params.title,
     ...(params.description && { description: params.description }),
     ...(params.fileType && { fileType: params.fileType }),
-    ...(params.thumbnailUrl && { thumbnailUrl: params.thumbnailUrl }),
+    ...(params.thumbnailAssetId && {
+      thumbnail: {
+        _type: "image",
+        asset: { _type: "reference", _ref: params.thumbnailAssetId },
+      },
+    }),
     s3Key: params.s3Key,
     ...(params.sectionId && { section: { _type: "reference", _ref: params.sectionId } }),
     order: params.order ?? 0,
@@ -419,7 +424,7 @@ export async function uploadImageAsset(
 
 /**
  * Upload an image asset to Sanity (requires SANITY_API_TOKEN).
- * Returns both assetId and a CDN URL for use in url fields like `thumbnailUrl`.
+ * Returns both assetId and a CDN URL for use when a URL string is needed.
  */
 export async function uploadImageAssetWithUrl(
   buffer: Buffer,
