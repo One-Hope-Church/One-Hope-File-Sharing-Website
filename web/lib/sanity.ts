@@ -198,10 +198,12 @@ export async function getDownloadableById(id: string): Promise<{ s3Key: string }
   return doc?.s3Key && typeof doc.s3Key === "string" ? { s3Key: doc.s3Key } : null;
 }
 
-/** Build a match pattern for GROQ text search (case-insensitive contains). */
+const MIN_SEARCH_LENGTH = 2;
+
+/** Build a match pattern for GROQ text search (case-insensitive contains). Requires at least MIN_SEARCH_LENGTH chars to avoid overly broad matches. */
 function searchPattern(q: string): string {
   const trimmed = q.trim().replace(/\*/g, "").toLowerCase();
-  if (!trimmed) return "";
+  if (trimmed.length < MIN_SEARCH_LENGTH) return "";
   return `*${trimmed}*`;
 }
 
