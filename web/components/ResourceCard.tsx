@@ -8,6 +8,7 @@ interface ResourceCardProps {
   title: string;
   description?: string;
   fileType?: string;
+  thumbnailUrl?: string | null;
   isSaved?: boolean;
   showSaveButton?: boolean;
 }
@@ -17,6 +18,7 @@ export default function ResourceCard({
   title,
   description,
   fileType,
+  thumbnailUrl,
   isSaved = false,
   showSaveButton = true,
 }: ResourceCardProps) {
@@ -156,8 +158,13 @@ export default function ResourceCard({
         className="flex w-full flex-col gap-3 rounded-lg border border-onehope-gray bg-white p-4 text-left transition-colors hover:border-primary/50 hover:bg-onehope-info/30 sm:flex-row sm:items-center sm:gap-4"
       >
         <div className="flex items-center gap-3 sm:min-w-0 sm:flex-1">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-onehope-gray text-2xl">
-            {icon}
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-onehope-gray">
+            {thumbnailUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- thumbnail is served as a URL
+              <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-2xl">{icon}</span>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="font-semibold text-onehope-black">{title}</h4>

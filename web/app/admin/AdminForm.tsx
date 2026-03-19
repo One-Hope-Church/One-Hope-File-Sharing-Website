@@ -79,6 +79,8 @@ export default function AdminForm({
   const [appendFileEntries, setAppendFileEntries] = useState<Array<{ file: File; fileType: string; title: string }>>([]);
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const [resourceThumbnailImage, setResourceThumbnailImage] = useState<File | null>(null);
+  const [resourceThumbnailPreviewUrl, setResourceThumbnailPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string>("");
@@ -99,6 +101,16 @@ export default function AdminForm({
     }
     setCoverPreviewUrl(null);
   }, [coverImage]);
+
+  useEffect(() => {
+    if (!resourceThumbnailImage) {
+      setResourceThumbnailPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(resourceThumbnailImage);
+    setResourceThumbnailPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [resourceThumbnailImage]);
 
   const onSingleDrop = useCallback((acceptedFiles: File[]) => {
     const f = acceptedFiles[0] ?? null;
@@ -167,6 +179,25 @@ export default function AdminForm({
 
       setUploadStatus("Creating resource…");
       setUploadProgress(null);
+
+      let thumbnailUrl: string | undefined = undefined;
+      if (resourceThumbnailImage) {
+        setUploadStatus("Uploading cover photo…");
+        const thumbForm = new FormData();
+        thumbForm.set("image", resourceThumbnailImage);
+        const thumbRes = await fetch("/api/admin/resource-thumbnail", {
+          method: "POST",
+          body: thumbForm,
+        });
+        const thumbData = await thumbRes.json().catch(() => ({}));
+        if (!thumbRes.ok) {
+          throw new Error(thumbData.error ?? "Thumbnail upload failed");
+        }
+        if (typeof thumbData.thumbnailUrl === "string") {
+          thumbnailUrl = thumbData.thumbnailUrl;
+        }
+      }
+
       const createRes = await fetch("/api/admin/resources", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -174,6 +205,7 @@ export default function AdminForm({
           title: title.trim(),
           description: description.trim() || undefined,
           fileType: fileType || undefined,
+          thumbnailUrl,
           s3Key: key,
           sectionId: sectionId || undefined,
         }),
@@ -191,6 +223,8 @@ export default function AdminForm({
       setTitle("");
       setDescription("");
       setFileType("");
+      setResourceThumbnailImage(null);
+      setResourceThumbnailPreviewUrl(null);
     } catch (err) {
       setMessage({
         type: "err",
@@ -507,6 +541,30 @@ export default function AdminForm({
               <p className="mt-1 text-sm text-gray-500">
                 Choose PDF, Video, Image, or ZIP so it displays with the right icon on the site.
               </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-onehope-black">
+                Optional: cover photo (thumbnail) for this resource
+              </label>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => setResourceThumbnailImage(e.target.files?.[0] ?? null)}
+                className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:hover:bg-primary-dark"
+              />
+              {resourceThumbnailPreviewUrl && resourceThumbnailImage && (
+                <div className="mt-3 space-y-2 rounded-lg border border-onehope-gray bg-white p-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- preview uses blob URL */}
+                  <img
+                    src={resourceThumbnailPreviewUrl}
+                    alt="Resource thumbnail preview"
+                    className="h-20 w-20 rounded object-cover"
+                  />
+                  <p className="text-sm text-onehope-black">
+                    ✓ {resourceThumbnailImage.name}
+                  </p>
+                </div>
+              )}
             </div>
           </>
         ) : mode === "append" ? (

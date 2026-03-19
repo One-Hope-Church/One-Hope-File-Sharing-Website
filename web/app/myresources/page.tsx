@@ -125,6 +125,7 @@ export default async function MyResourcesPage({ searchParams }: PageProps) {
                     title={String(r.title ?? "Untitled")}
                     description={r.description ? String(r.description) : undefined}
                     fileType={r.fileType ? String(r.fileType) : undefined}
+                    thumbnailUrl={r.thumbnailUrl ? String(r.thumbnailUrl) : undefined}
                     isSaved={savedIds.includes(String(r._id))}
                   />
                 ))}
@@ -142,6 +143,7 @@ export default async function MyResourcesPage({ searchParams }: PageProps) {
                     title={String(r.title ?? "Untitled")}
                     description={r.description ? String(r.description) : undefined}
                     fileType={r.fileType ? String(r.fileType) : undefined}
+                    thumbnailUrl={r.thumbnailUrl ? String(r.thumbnailUrl) : undefined}
                     isSaved={true}
                   />
                 ))}

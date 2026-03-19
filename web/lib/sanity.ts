@@ -171,6 +171,7 @@ const savedItemFields = `
   title,
   description,
   fileType,
+  thumbnailUrl,
   "heroImage": heroImage.asset->url,
   "slug": slug.current
 `;
@@ -234,6 +235,7 @@ export async function createResource(params: {
   title: string;
   description?: string;
   fileType?: string;
+  thumbnailUrl?: string;
   s3Key: string;
   sectionId?: string;
   order?: number;
@@ -244,6 +246,7 @@ export async function createResource(params: {
     title: params.title,
     ...(params.description && { description: params.description }),
     ...(params.fileType && { fileType: params.fileType }),
+    ...(params.thumbnailUrl && { thumbnailUrl: params.thumbnailUrl }),
     s3Key: params.s3Key,
     ...(params.sectionId && { section: { _type: "reference", _ref: params.sectionId } }),
     order: params.order ?? 0,
@@ -412,6 +415,26 @@ export async function uploadImageAsset(
     contentType: contentType.startsWith("image/") ? contentType : "image/jpeg",
   });
   return asset._id ?? null;
+}
+
+/**
+ * Upload an image asset to Sanity (requires SANITY_API_TOKEN).
+ * Returns both assetId and a CDN URL for use in url fields like `thumbnailUrl`.
+ */
+export async function uploadImageAssetWithUrl(
+  buffer: Buffer,
+  filename: string,
+  contentType: string
+): Promise<{ assetId: string; url: string } | null> {
+  if (!sanityClientWithToken) return null;
+  const asset = await sanityClientWithToken.assets.upload("image", buffer, {
+    filename,
+    contentType: contentType.startsWith("image/") ? contentType : "image/jpeg",
+  });
+  const assetId = asset._id ?? null;
+  const url = (asset as Record<string, unknown>).url;
+  if (!assetId || typeof url !== "string") return null;
+  return { assetId: String(assetId), url };
 }
 
 /** Set a collection's hero/cover image (requires SANITY_API_TOKEN). */
