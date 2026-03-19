@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 interface TopBarProps {
   userDisplay?: string | null;
   onMenuClick?: () => void;
+  onEditProfile?: () => void;
 }
 
 function useDebouncedCallback<Args extends unknown[]>(
@@ -43,7 +44,7 @@ type SearchResult = {
   resources: Array<Record<string, unknown>>;
 };
 
-export default function TopBar({ userDisplay, onMenuClick }: TopBarProps) {
+export default function TopBar({ userDisplay, onMenuClick, onEditProfile }: TopBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -231,12 +232,23 @@ export default function TopBar({ userDisplay, onMenuClick }: TopBarProps) {
         )}
       </div>
       {userDisplay && (
-        <span
-          className="hidden max-w-[180px] truncate text-sm text-onehope-black sm:inline"
-          title={userDisplay}
-        >
-          {userDisplay}
-        </span>
+        onEditProfile ? (
+          <button
+            type="button"
+            onClick={onEditProfile}
+            className="hidden max-w-[180px] truncate text-left text-sm text-onehope-black hover:text-primary sm:inline"
+            title={`${userDisplay} — Edit profile`}
+          >
+            {userDisplay}
+          </button>
+        ) : (
+          <span
+            className="hidden max-w-[180px] truncate text-sm text-onehope-black sm:inline"
+            title={userDisplay}
+          >
+            {userDisplay}
+          </span>
+        )
       )}
     </header>
   );

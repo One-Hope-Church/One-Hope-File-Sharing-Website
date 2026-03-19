@@ -269,12 +269,37 @@ function formatPhone(value: string): string {
 interface ProfileModalProps {
   userEmail: string;
   onComplete: () => void;
+  /** When true, opens the modal for editing (user clicked Account or name). */
+  openForEdit?: boolean;
+  /** Called when the user closes the edit modal (Cancel, click outside, Escape). */
+  onCloseEdit?: () => void;
 }
 
-export default function ProfileModal({ userEmail, onComplete }: ProfileModalProps) {
+function populateFormFromProfile(profile: Record<string, unknown>) {
+  const rawPhone = (profile.phone ?? "").toString();
+  const state = (profile.church_state ?? "").toString().trim();
+  const rawCountry = (profile.country as string) ?? "";
+  const hasCountry = rawCountry.trim().length > 0;
+  const looksLikeUSState = state.length === 2 && US_STATES.some((s) => s.value === state);
+  const country = hasCountry ? rawCountry.trim() : looksLikeUSState ? "US" : "US";
+  return {
+    first_name: (profile.first_name ?? "") as string,
+    last_name: (profile.last_name ?? "") as string,
+    phone: rawPhone ? formatPhone(rawPhone) : "",
+    church_name: (profile.church_name ?? "") as string,
+    church_title: (profile.church_title ?? "") as string,
+    church_city: (profile.church_city ?? "") as string,
+    church_state: state,
+    country,
+  };
+}
+
+export default function ProfileModal({ userEmail, onComplete, openForEdit, onCloseEdit }: ProfileModalProps) {
   const [visible, setVisible] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveToast, setSaveToast] = useState(false);
   const [needsProfile, setNeedsProfile] = useState(false);
+  const isEditMode = openForEdit ?? false;
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
@@ -294,13 +319,16 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setVisible(false);
+      if (e.key === "Escape") {
+        setVisible(false);
+        if (isEditMode) onCloseEdit?.();
+      }
     };
     if (visible) {
       window.addEventListener("keydown", onKeyDown);
       return () => window.removeEventListener("keydown", onKeyDown);
     }
-  }, [visible]);
+  }, [visible, isEditMode, onCloseEdit]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -321,22 +349,7 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
         const res = await fetch("/api/profile", { credentials: "same-origin" });
         const data = await res.json().catch(() => ({}));
         if (mounted && !data.complete && data.profile) {
-          const rawPhone = (data.profile.phone ?? "").toString();
-          const state = (data.profile.church_state ?? "").toString().trim();
-          const rawCountry = (data.profile as { country?: string }).country ?? "";
-          const hasCountry = rawCountry.trim().length > 0;
-          const looksLikeUSState = state.length === 2 && US_STATES.some((s) => s.value === state);
-          const country = hasCountry ? rawCountry.trim() : looksLikeUSState ? "US" : "US";
-          setForm({
-            first_name: data.profile.first_name ?? "",
-            last_name: data.profile.last_name ?? "",
-            phone: rawPhone ? formatPhone(rawPhone) : "",
-            church_name: data.profile.church_name ?? "",
-            church_title: data.profile.church_title ?? "",
-            church_city: data.profile.church_city ?? "",
-            church_state: state,
-            country,
-          });
+          setForm(populateFormFromProfile(data.profile as Record<string, unknown>));
         }
         if (mounted && !data.complete) {
           setNeedsProfile(true);
@@ -352,6 +365,27 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
     };
   }, [userEmail]);
 
+  useEffect(() => {
+    if (!openForEdit) {
+      setVisible(false);
+      return;
+    }
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/profile", { credentials: "same-origin" });
+        const data = await res.json().catch(() => ({}));
+        if (mounted && data.profile) {
+          setForm(populateFormFromProfile(data.profile as Record<string, unknown>));
+        }
+        if (mounted) setVisible(true);
+      } catch {
+        if (mounted) onCloseEdit?.();
+      }
+    })();
+    return () => { mounted = false; };
+  }, [openForEdit, onCloseEdit]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -363,15 +397,25 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
         body: JSON.stringify(form),
       });
       if (res.ok) {
-        setVisible(false);
-        onComplete();
+        setSaveToast(true);
+        setTimeout(() => {
+          setVisible(false);
+          setSaveToast(false);
+          onComplete();
+          onCloseEdit?.();
+        }, 1500);
       }
     } finally {
       setSaving(false);
     }
   }
 
-  if (!needsProfile || !visible) return null;
+  function handleClose() {
+    setVisible(false);
+    if (isEditMode) onCloseEdit?.();
+  }
+
+  if ((!needsProfile && !openForEdit) || !visible) return null;
 
   const ReqLabel = ({ id, children }: { id: string; children: React.ReactNode }) => (
     <label htmlFor={id} className="block text-sm font-medium text-onehope-black">
@@ -380,23 +424,35 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
   );
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-4"
-      onClick={() => setVisible(false)}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="profile-modal-title"
-    >
+    <>
+      {saveToast && (
+        <div
+          className="fixed bottom-4 left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-onehope-black px-4 py-2 text-sm font-medium text-white shadow-lg"
+          role="status"
+          aria-live="polite"
+        >
+          Profile updated!
+        </div>
+      )}
+      <div
+        className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-4"
+        onClick={handleClose}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-modal-title"
+      >
       <div
         className="flex max-h-[90vh] w-full max-w-lg flex-col animate-slide-up overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[85vh] sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 border-b border-onehope-gray px-4 py-3 sm:px-6 sm:py-4">
           <h2 id="profile-modal-title" className="text-lg font-bold text-onehope-black sm:text-xl">
-            Complete your profile
+            {isEditMode ? "Edit profile" : "Complete your profile"}
           </h2>
           <p className="mt-1 text-sm text-gray-600">
-            Help us personalize your experience with a few quick questions.
+            {isEditMode
+              ? "Update your name and church information."
+              : "Help us personalize your experience with a few quick questions."}
           </p>
         </div>
         <form
@@ -613,10 +669,10 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
-              onClick={() => setVisible(false)}
+              onClick={handleClose}
               className="rounded-lg border border-onehope-gray px-4 py-2 text-sm font-medium text-onehope-black hover:bg-onehope-gray/30"
             >
-              Later
+              {isEditMode ? "Cancel" : "Later"}
             </button>
             <button
               type="submit"
@@ -629,5 +685,6 @@ export default function ProfileModal({ userEmail, onComplete }: ProfileModalProp
         </form>
       </div>
     </div>
+    </>
   );
 }

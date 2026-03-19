@@ -10,9 +10,10 @@ interface SidebarProps {
   onClose?: () => void;
   user?: { email: string; role: string } | null;
   showUpload?: boolean;
+  onEditProfile?: () => void;
 }
 
-export default function Sidebar({ sections = [], isOpen = false, onClose, user, showUpload }: SidebarProps) {
+export default function Sidebar({ sections = [], isOpen = false, onClose, user, showUpload, onEditProfile }: SidebarProps) {
   const router = useRouter();
 
   async function handleLogout() {
@@ -109,6 +110,19 @@ export default function Sidebar({ sections = [], isOpen = false, onClose, user, 
               <span className="text-xl" aria-hidden>↑</span>
               Upload
             </Link>
+          )}
+          {user && onEditProfile && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose?.();
+                onEditProfile();
+              }}
+              className="mb-2 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[16px] transition-colors hover:bg-white/20"
+            >
+              <span className="text-xl" aria-hidden>👤</span>
+              Account
+            </button>
           )}
           {user ? (
             <button

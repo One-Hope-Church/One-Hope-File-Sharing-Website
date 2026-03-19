@@ -17,6 +17,7 @@ interface AppShellProps {
 export default function AppShell({ children, user, userDisplay, showUpload, sections }: AppShellProps) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen">
@@ -26,6 +27,7 @@ export default function AppShell({ children, user, userDisplay, showUpload, sect
         onClose={() => setSidebarOpen(false)}
         user={user}
         showUpload={showUpload}
+        onEditProfile={() => setProfileModalOpen(true)}
       />
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -37,13 +39,19 @@ export default function AppShell({ children, user, userDisplay, showUpload, sect
         />
       )}
       <div className="flex min-w-0 flex-1 flex-col pl-0 lg:pl-[280px]">
-        <TopBar userDisplay={userDisplay} onMenuClick={() => setSidebarOpen(true)} />
+        <TopBar
+          userDisplay={userDisplay}
+          onMenuClick={() => setSidebarOpen(true)}
+          onEditProfile={user ? () => setProfileModalOpen(true) : undefined}
+        />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
       {user?.email && (
         <ProfileModal
           userEmail={user.email}
           onComplete={() => router.refresh()}
+          openForEdit={profileModalOpen}
+          onCloseEdit={() => setProfileModalOpen(false)}
         />
       )}
     </div>
