@@ -1,25 +1,70 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useRef } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface TopBarProps {
   userDisplay?: string | null;
   onMenuClick?: () => void;
 }
 
+function useDebouncedCallback<T extends (...args: unknown[]) => void>(fn: T, delay: number) {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+
+  const debounced = useCallback(
+    (...args: Parameters<T>) => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        timeoutRef.current = null;
+        fnRef.current(...args);
+      }, delay);
+    },
+    [delay]
+  );
+
+  useEffect(
+    () => () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    },
+    []
+  );
+
+  return debounced;
+}
+
 export default function TopBar({ userDisplay, onMenuClick }: TopBarProps) {
   const router = useRouter();
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlQuery = pathname === "/search" ? searchParams.get("q") ?? "" : "";
 
-  function handleSearch(e: React.FormEvent) {
+  const [query, setQuery] = useState(urlQuery);
+
+  useEffect(() => {
+    setQuery(urlQuery);
+  }, [urlQuery]);
+
+  const navigateToSearch = useCallback(
+    (q: string) => {
+      const trimmed = q.trim();
+      router.push(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : "/search");
+    },
+    [router]
+  );
+
+  const debouncedNavigate = useDebouncedCallback(navigateToSearch, 300);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value;
+    setQuery(v);
+    debouncedNavigate(v);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const q = searchInputRef.current?.value?.trim();
-    if (q) {
-      router.push(`/search?q=${encodeURIComponent(q)}`);
-    } else {
-      router.push("/search");
-    }
+    navigateToSearch(query);
   }
 
   return (
@@ -32,17 +77,18 @@ export default function TopBar({ userDisplay, onMenuClick }: TopBarProps) {
       >
         <span className="text-2xl" aria-hidden>☰</span>
       </button>
-      <form onSubmit={handleSearch} className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
+      <form onSubmit={handleSubmit} className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
         <label className="sr-only" htmlFor="search">
           Search collections and resources
         </label>
         <input
-          ref={searchInputRef}
           id="search"
           name="q"
           type="search"
           placeholder="What can I help you find?"
-          defaultValue=""
+          value={query}
+          onChange={handleChange}
+          autoComplete="off"
           className="min-w-0 max-w-md flex-1 rounded-lg border border-onehope-gray bg-onehope-info/50 px-3 py-2 text-sm text-onehope-black placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:px-4 sm:text-base"
         />
         <button
