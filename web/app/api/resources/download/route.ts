@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { getDownloadableById } from "@/lib/sanity";
 import { getPresignedDownloadUrl } from "@/lib/s3";
 import { logDownload } from "@/lib/supabase-download-log";
+import { normalizeExternalUrl } from "@/lib/external-link";
 
 export async function GET(request: NextRequest) {
   const session = await getSession();
@@ -17,13 +18,27 @@ export async function GET(request: NextRequest) {
   if (!doc) {
     return NextResponse.json({ error: "Resource not found" }, { status: 404 });
   }
-  const url = await getPresignedDownloadUrl(doc.s3Key);
-  if (!url) {
-    return NextResponse.json(
-      { error: "Download not configured" },
-      { status: 503 }
-    );
+
+  let url: string | null = null;
+  if (doc.s3Key) {
+    url = await getPresignedDownloadUrl(doc.s3Key);
+    if (!url) {
+      return NextResponse.json(
+        { error: "Download not configured" },
+        { status: 503 }
+      );
+    }
+  } else if (doc.externalUrl) {
+    url = normalizeExternalUrl(doc.externalUrl);
+    if (!url) {
+      return NextResponse.json({ error: "Invalid link" }, { status: 400 });
+    }
   }
+
+  if (!url) {
+    return NextResponse.json({ error: "Resource not found" }, { status: 404 });
+  }
+
   if (session.user?.email) {
     try {
       await logDownload(session.user.email, id);

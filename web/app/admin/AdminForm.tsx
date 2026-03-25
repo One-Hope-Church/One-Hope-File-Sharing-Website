@@ -34,6 +34,17 @@ function fileNameWithoutExt(name: string): string {
   return i > 0 ? name.slice(0, i) : name;
 }
 
+function looksLikeHttpUrl(raw: string): boolean {
+  const t = raw.trim();
+  if (!t) return false;
+  try {
+    const u = new URL(t);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 /** Upload file to URL with progress. Returns response. */
 function uploadWithProgress(
   url: string,
@@ -66,6 +77,8 @@ export default function AdminForm({
   const router = useRouter();
   const [mode, setMode] = useState<UploadMode>("single");
   const [sections, setSections] = useState<Array<{ _id: string; title: string }>>([]);
+  const [singleSource, setSingleSource] = useState<"file" | "link">("file");
+  const [externalUrlInput, setExternalUrlInput] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [fileType, setFileType] = useState("");
   const [fileEntries, setFileEntries] = useState<Array<{ file: File; fileType: string; title: string }>>([]);
@@ -77,6 +90,12 @@ export default function AdminForm({
   const [sectionId, setSectionId] = useState("");
   const [appendCollectionId, setAppendCollectionId] = useState("");
   const [appendFileEntries, setAppendFileEntries] = useState<Array<{ file: File; fileType: string; title: string }>>([]);
+  const [groupExternalEntries, setGroupExternalEntries] = useState<Array<{ title: string; url: string }>>([]);
+  const [appendExternalEntries, setAppendExternalEntries] = useState<Array<{ title: string; url: string }>>([]);
+  const [groupLinkTitle, setGroupLinkTitle] = useState("");
+  const [groupLinkUrl, setGroupLinkUrl] = useState("");
+  const [appendLinkTitle, setAppendLinkTitle] = useState("");
+  const [appendLinkUrl, setAppendLinkUrl] = useState("");
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const [resourceThumbnailImage, setResourceThumbnailImage] = useState<File | null>(null);
@@ -150,36 +169,23 @@ export default function AdminForm({
 
   async function uploadSingle(e: React.FormEvent) {
     e.preventDefault();
-    if (!file || !title.trim()) {
-      setMessage({ type: "err", text: "Title and file are required" });
+    if (!title.trim()) {
+      setMessage({ type: "err", text: "Title is required" });
+      return;
+    }
+    if (singleSource === "file" && !file) {
+      setMessage({ type: "err", text: "Choose a file or switch to external link" });
+      return;
+    }
+    if (singleSource === "link" && !looksLikeHttpUrl(externalUrlInput)) {
+      setMessage({ type: "err", text: "Enter a valid http or https URL" });
       return;
     }
     setMessage(null);
     setLoading(true);
-    setUploadStatus("Getting upload URL…");
+    setUploadStatus("");
     setUploadProgress(0);
     try {
-      const presignRes = await fetch("/api/upload/presign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filename: file.name,
-          contentType: file.type || "application/octet-stream",
-          collectionId: uploadsFolder,
-        }),
-      });
-      if (!presignRes.ok) {
-        const data = await presignRes.json();
-        throw new Error(data.error || "Failed to get upload URL");
-      }
-      const { url, key } = await presignRes.json();
-      setUploadStatus("Uploading…");
-      const putRes = await uploadWithProgress(url, file, setUploadProgress);
-      if (!putRes.ok) throw new Error("Upload failed");
-
-      setUploadStatus("Creating resource…");
-      setUploadProgress(null);
-
       let thumbnailAssetId: string | undefined = undefined;
       if (resourceThumbnailImage) {
         setUploadStatus("Uploading cover photo…");
@@ -198,31 +204,63 @@ export default function AdminForm({
         }
       }
 
+      let s3Key: string | undefined;
+      if (singleSource === "file" && file) {
+        setUploadStatus("Getting upload URL…");
+        const presignRes = await fetch("/api/upload/presign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: file.name,
+            contentType: file.type || "application/octet-stream",
+            collectionId: uploadsFolder,
+          }),
+        });
+        if (!presignRes.ok) {
+          const data = await presignRes.json();
+          throw new Error(data.error || "Failed to get upload URL");
+        }
+        const { url, key } = await presignRes.json();
+        setUploadStatus("Uploading…");
+        const putRes = await uploadWithProgress(url, file, setUploadProgress);
+        if (!putRes.ok) throw new Error("Upload failed");
+        s3Key = key;
+        setUploadProgress(null);
+      }
+
+      setUploadStatus("Creating resource…");
+
       const createRes = await fetch("/api/admin/resources", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim(),
           description: description.trim() || undefined,
-          fileType: fileType || undefined,
+          fileType: fileType || (singleSource === "link" ? "other" : undefined),
           thumbnailAssetId,
-          s3Key: key,
+          ...(s3Key ? { s3Key } : {}),
+          ...(singleSource === "link" ? { externalUrl: externalUrlInput.trim() } : {}),
           sectionId: sectionId || undefined,
         }),
       });
       if (!createRes.ok) {
         const data = await createRes.json();
-        throw new Error(data.error || "Upload succeeded but failed to save resource");
+        throw new Error(data.error || "Failed to save resource");
       }
 
       setMessage({
         type: "ok",
-        text: "File uploaded and resource added. It will appear in the chosen section.",
+        text:
+          singleSource === "link"
+            ? "External link resource added. It will appear in the chosen section."
+            : "File uploaded and resource added. It will appear in the chosen section.",
       });
       setFile(null);
       setTitle("");
       setDescription("");
       setFileType("");
+      setExternalUrlInput("");
+      setSingleSource("file");
       setResourceThumbnailImage(null);
       setResourceThumbnailPreviewUrl(null);
     } catch (err) {
@@ -243,8 +281,8 @@ export default function AdminForm({
       setMessage({ type: "err", text: "Collection title and section are required" });
       return;
     }
-    if (fileEntries.length === 0) {
-      setMessage({ type: "err", text: "Choose at least one file" });
+    if (fileEntries.length === 0 && groupExternalEntries.length === 0) {
+      setMessage({ type: "err", text: "Add at least one file or external link" });
       return;
     }
     setMessage(null);
@@ -290,6 +328,29 @@ export default function AdminForm({
         if (data.collectionResourceId) collectionResourceIds.push(data.collectionResourceId);
       }
 
+      for (let i = 0; i < groupExternalEntries.length; i++) {
+        const { title: linkTitle, url } = groupExternalEntries[i];
+        if (!looksLikeHttpUrl(url)) {
+          throw new Error(`Invalid URL for “${linkTitle || `Link ${i + 1}`}”`);
+        }
+        setUploadStatus(`Adding external link ${i + 1} of ${groupExternalEntries.length}…`);
+        const createRes = await fetch("/api/admin/collection-resources", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: linkTitle.trim() || `Link ${i + 1}`,
+            fileType: "other",
+            externalUrl: url.trim(),
+          }),
+        });
+        if (!createRes.ok) {
+          const data = await createRes.json();
+          throw new Error(data.error || "Failed to create link item");
+        }
+        const data = await createRes.json();
+        if (data.collectionResourceId) collectionResourceIds.push(data.collectionResourceId);
+      }
+
       const collectionRes = await fetch("/api/admin/collections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -307,7 +368,8 @@ export default function AdminForm({
       const collectionData = await collectionRes.json();
       const newCollectionId = collectionData.collectionId;
 
-      let successText = `Collection "${groupTitle.trim()}" created with ${fileEntries.length} resource(s).`;
+      const totalItems = fileEntries.length + groupExternalEntries.length;
+      let successText = `Collection "${groupTitle.trim()}" created with ${totalItems} resource(s).`;
       if (coverImage && newCollectionId) {
         const coverForm = new FormData();
         coverForm.set("collectionId", newCollectionId);
@@ -328,6 +390,9 @@ export default function AdminForm({
       setGroupTitle("");
       setCollectionDescription("");
       setFileEntries([]);
+      setGroupExternalEntries([]);
+      setGroupLinkTitle("");
+      setGroupLinkUrl("");
       setCoverImage(null);
     } catch (err) {
       setMessage({
@@ -343,8 +408,8 @@ export default function AdminForm({
 
   async function uploadAppend(e: React.FormEvent) {
     e.preventDefault();
-    if (!appendCollectionId || appendFileEntries.length === 0) {
-      setMessage({ type: "err", text: "Select a collection and at least one file" });
+    if (!appendCollectionId || (appendFileEntries.length === 0 && appendExternalEntries.length === 0)) {
+      setMessage({ type: "err", text: "Select a collection and add at least one file or external link" });
       return;
     }
     setMessage(null);
@@ -390,6 +455,29 @@ export default function AdminForm({
         if (data.collectionResourceId) collectionResourceIds.push(data.collectionResourceId);
       }
 
+      for (let i = 0; i < appendExternalEntries.length; i++) {
+        const { title: linkTitle, url } = appendExternalEntries[i];
+        if (!looksLikeHttpUrl(url)) {
+          throw new Error(`Invalid URL for “${linkTitle || `Link ${i + 1}`}”`);
+        }
+        setUploadStatus(`Adding external link ${i + 1} of ${appendExternalEntries.length}…`);
+        const createRes = await fetch("/api/admin/collection-resources", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: linkTitle.trim() || `Link ${i + 1}`,
+            fileType: "other",
+            externalUrl: url.trim(),
+          }),
+        });
+        if (!createRes.ok) {
+          const data = await createRes.json();
+          throw new Error(data.error || "Failed to create link item");
+        }
+        const data = await createRes.json();
+        if (data.collectionResourceId) collectionResourceIds.push(data.collectionResourceId);
+      }
+
       const appendRes = await fetch("/api/admin/collections/append-resources", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -403,9 +491,13 @@ export default function AdminForm({
         throw new Error(data.error || "Files uploaded but failed to add to collection");
       }
 
-      setMessage({ type: "ok", text: `${appendFileEntries.length} file(s) added to the collection.` });
+      const appended = appendFileEntries.length + appendExternalEntries.length;
+      setMessage({ type: "ok", text: `${appended} item(s) added to the collection.` });
       setAppendCollectionId("");
       setAppendFileEntries([]);
+      setAppendExternalEntries([]);
+      setAppendLinkTitle("");
+      setAppendLinkUrl("");
     } catch (err) {
       setMessage({
         type: "err",
@@ -500,29 +592,70 @@ export default function AdminForm({
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-onehope-black">
-                File <span className="text-red-600">*</span>
+            <div className="space-y-2">
+              <span className="block text-sm font-medium text-onehope-black">Resource source</span>
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="singleSource"
+                  checked={singleSource === "file"}
+                  onChange={() => setSingleSource("file")}
+                  className="text-primary"
+                />
+                <span>Upload file</span>
               </label>
-              <div
-                {...singleDrop.getRootProps()}
-                className={`mt-1 w-full cursor-pointer rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
-                  singleDrop.isDragActive
-                    ? "border-primary bg-primary/10"
-                    : "border-onehope-gray hover:border-primary/50"
-                }`}
-              >
-                <input {...singleDrop.getInputProps()} />
-                {singleDrop.isDragActive ? (
-                  <p className="text-primary">Drop the file here…</p>
-                ) : (
-                  <p className="text-gray-600">
-                    Drag and drop a file here, or click to select
-                    {file && <span className="block mt-1 text-sm text-onehope-black">✓ {file.name}</span>}
-                  </p>
-                )}
-              </div>
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="singleSource"
+                  checked={singleSource === "link"}
+                  onChange={() => setSingleSource("link")}
+                  className="text-primary"
+                />
+                <span>External link (any https URL)</span>
+              </label>
             </div>
+            {singleSource === "file" ? (
+              <div>
+                <label className="block text-sm font-medium text-onehope-black">
+                  File <span className="text-red-600">*</span>
+                </label>
+                <div
+                  {...singleDrop.getRootProps()}
+                  className={`mt-1 w-full cursor-pointer rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
+                    singleDrop.isDragActive
+                      ? "border-primary bg-primary/10"
+                      : "border-onehope-gray hover:border-primary/50"
+                  }`}
+                >
+                  <input {...singleDrop.getInputProps()} />
+                  {singleDrop.isDragActive ? (
+                    <p className="text-primary">Drop the file here…</p>
+                  ) : (
+                    <p className="text-gray-600">
+                      Drag and drop a file here, or click to select
+                      {file && <span className="block mt-1 text-sm text-onehope-black">✓ {file.name}</span>}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-onehope-black">
+                  URL <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="url"
+                  value={externalUrlInput}
+                  onChange={(e) => setExternalUrlInput(e.target.value)}
+                  placeholder="https://…"
+                  className="mt-1 w-full rounded-lg border border-onehope-gray px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  Vimeo, Figma, Google Docs, Typeform, your church site, etc.
+                </p>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-onehope-black">
                 File type for this resource
@@ -539,7 +672,7 @@ export default function AdminForm({
                 ))}
               </select>
               <p className="mt-1 text-sm text-gray-500">
-                Choose PDF, Video, Image, or ZIP so it displays with the right icon on the site.
+                Choose PDF, Video, Image, or Other so the card shows the right icon (external links often use Other).
               </p>
             </div>
             <div>
@@ -591,7 +724,7 @@ export default function AdminForm({
             </div>
             <div>
               <label className="block text-sm font-medium text-onehope-black">
-                Files <span className="text-red-600">*</span>
+                Files <span className="text-gray-500">(optional if you add links below)</span>
               </label>
               <div
                 {...appendDrop.getRootProps()}
@@ -666,6 +799,77 @@ export default function AdminForm({
                 </div>
               )}
             </div>
+            <div className="rounded-lg border border-onehope-gray bg-onehope-info/10 p-4">
+              <h3 className="text-sm font-semibold text-onehope-black">External links</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Add Vimeo, docs, or any https URL as collection items (in addition to files above).
+              </p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1">
+                  <label className="block text-xs font-medium text-gray-600">Display name</label>
+                  <input
+                    type="text"
+                    value={appendLinkTitle}
+                    onChange={(e) => setAppendLinkTitle(e.target.value)}
+                    placeholder="e.g. Message video"
+                    className="mt-0.5 w-full rounded border border-onehope-gray px-2 py-1.5 text-sm"
+                  />
+                </div>
+                <div className="min-w-0 flex-[2]">
+                  <label className="block text-xs font-medium text-gray-600">URL</label>
+                  <input
+                    type="url"
+                    value={appendLinkUrl}
+                    onChange={(e) => setAppendLinkUrl(e.target.value)}
+                    placeholder="https://…"
+                    className="mt-0.5 w-full rounded border border-onehope-gray px-2 py-1.5 text-sm"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!looksLikeHttpUrl(appendLinkUrl)) {
+                      setMessage({ type: "err", text: "Enter a valid http or https URL first" });
+                      return;
+                    }
+                    setAppendExternalEntries((prev) => [
+                      ...prev,
+                      { title: appendLinkTitle.trim() || "External link", url: appendLinkUrl.trim() },
+                    ]);
+                    setAppendLinkTitle("");
+                    setAppendLinkUrl("");
+                    setMessage(null);
+                  }}
+                  className="rounded-lg border border-onehope-gray bg-white px-3 py-2 text-sm font-medium hover:bg-onehope-info/30"
+                >
+                  Add link
+                </button>
+              </div>
+              {appendExternalEntries.length > 0 && (
+                <ul className="mt-3 space-y-1 text-sm">
+                  {appendExternalEntries.map((row, i) => (
+                    <li
+                      key={`${i}-${row.url}`}
+                      className="flex items-center justify-between gap-2 rounded border border-onehope-gray bg-white px-2 py-1.5"
+                    >
+                      <span className="min-w-0 truncate">
+                        <span className="font-medium">{row.title}</span>{" "}
+                        <span className="text-gray-500">{row.url}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAppendExternalEntries((prev) => prev.filter((_, j) => j !== i))
+                        }
+                        className="shrink-0 text-red-600 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </>
         ) : (
           <>
@@ -719,7 +923,7 @@ export default function AdminForm({
             </div>
             <div>
               <label className="block text-sm font-medium text-onehope-black">
-                Files <span className="text-red-600">*</span>
+                Files <span className="text-gray-500">(optional if you add external links)</span>
               </label>
               <div
                 {...groupDrop.getRootProps()}
@@ -795,6 +999,77 @@ export default function AdminForm({
               )}
             </div>
             <div className="rounded-lg border border-onehope-gray bg-onehope-info/10 p-4">
+              <h3 className="text-sm font-semibold text-onehope-black">External links</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Add https links as collection items (in addition to files above).
+              </p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1">
+                  <label className="block text-xs font-medium text-gray-600">Display name</label>
+                  <input
+                    type="text"
+                    value={groupLinkTitle}
+                    onChange={(e) => setGroupLinkTitle(e.target.value)}
+                    placeholder="e.g. Registration form"
+                    className="mt-0.5 w-full rounded border border-onehope-gray px-2 py-1.5 text-sm"
+                  />
+                </div>
+                <div className="min-w-0 flex-[2]">
+                  <label className="block text-xs font-medium text-gray-600">URL</label>
+                  <input
+                    type="url"
+                    value={groupLinkUrl}
+                    onChange={(e) => setGroupLinkUrl(e.target.value)}
+                    placeholder="https://…"
+                    className="mt-0.5 w-full rounded border border-onehope-gray px-2 py-1.5 text-sm"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!looksLikeHttpUrl(groupLinkUrl)) {
+                      setMessage({ type: "err", text: "Enter a valid http or https URL first" });
+                      return;
+                    }
+                    setGroupExternalEntries((prev) => [
+                      ...prev,
+                      { title: groupLinkTitle.trim() || "External link", url: groupLinkUrl.trim() },
+                    ]);
+                    setGroupLinkTitle("");
+                    setGroupLinkUrl("");
+                    setMessage(null);
+                  }}
+                  className="rounded-lg border border-onehope-gray bg-white px-3 py-2 text-sm font-medium hover:bg-onehope-info/30"
+                >
+                  Add link
+                </button>
+              </div>
+              {groupExternalEntries.length > 0 && (
+                <ul className="mt-3 space-y-1 text-sm">
+                  {groupExternalEntries.map((row, i) => (
+                    <li
+                      key={`${i}-${row.url}`}
+                      className="flex items-center justify-between gap-2 rounded border border-onehope-gray bg-white px-2 py-1.5"
+                    >
+                      <span className="min-w-0 truncate">
+                        <span className="font-medium">{row.title}</span>{" "}
+                        <span className="text-gray-500">{row.url}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setGroupExternalEntries((prev) => prev.filter((_, j) => j !== i))
+                        }
+                        className="shrink-0 text-red-600 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-lg border border-onehope-gray bg-onehope-info/10 p-4">
               <h3 className="text-sm font-semibold text-onehope-black">
                 Optional: set cover photo for this collection
               </h3>
@@ -859,9 +1134,17 @@ export default function AdminForm({
           type="submit"
           disabled={
             loading ||
-            (mode === "single" && (!file || !title.trim())) ||
-            (mode === "group" && (!groupTitle.trim() || !sectionId || fileEntries.length === 0)) ||
-            (mode === "append" && (!appendCollectionId || appendFileEntries.length === 0))
+            (mode === "single" &&
+              (!title.trim() ||
+                (singleSource === "file" && !file) ||
+                (singleSource === "link" && !looksLikeHttpUrl(externalUrlInput)))) ||
+            (mode === "group" &&
+              (!groupTitle.trim() ||
+                !sectionId ||
+                (fileEntries.length === 0 && groupExternalEntries.length === 0))) ||
+            (mode === "append" &&
+              (!appendCollectionId ||
+                (appendFileEntries.length === 0 && appendExternalEntries.length === 0)))
           }
           className="w-full rounded-lg bg-primary py-2 font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
         >
@@ -872,9 +1155,11 @@ export default function AdminForm({
                 ? "Adding to collection…"
                 : "Creating collection…"
             : mode === "single"
-              ? "Upload & add resource"
+              ? singleSource === "link"
+                ? "Add resource"
+                : "Upload & add resource"
               : mode === "append"
-                ? "Add files to collection"
+                ? `Add ${appendFileEntries.length + appendExternalEntries.length} item(s)`
                 : "Create collection"}
         </button>
       </form>

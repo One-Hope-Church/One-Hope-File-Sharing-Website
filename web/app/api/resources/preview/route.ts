@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { getDownloadableById } from "@/lib/sanity";
 import { getPresignedPreviewUrl } from "@/lib/s3";
+import { normalizeExternalUrl } from "@/lib/external-link";
 
 export async function GET(request: NextRequest) {
   const session = await getSession();
@@ -16,12 +17,19 @@ export async function GET(request: NextRequest) {
   if (!doc) {
     return NextResponse.json({ error: "Resource not found" }, { status: 404 });
   }
-  const url = await getPresignedPreviewUrl(doc.s3Key);
-  if (!url) {
-    return NextResponse.json(
-      { error: "Preview not available" },
-      { status: 503 }
-    );
+  if (doc.s3Key) {
+    const url = await getPresignedPreviewUrl(doc.s3Key);
+    if (!url) {
+      return NextResponse.json(
+        { error: "Preview not available" },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ url });
   }
-  return NextResponse.json({ url });
+  const ext = doc.externalUrl ? normalizeExternalUrl(doc.externalUrl) : null;
+  if (!ext) {
+    return NextResponse.json({ error: "Preview not available" }, { status: 404 });
+  }
+  return NextResponse.json({ url: ext, externalLink: true });
 }

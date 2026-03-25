@@ -9,6 +9,10 @@ interface ResourceCardProps {
   description?: string;
   fileType?: string;
   thumbnailUrl?: string | null;
+  /** S3 object key when this resource has an uploaded file */
+  s3Key?: string | null;
+  /** External URL when this resource is link-only or has a link (see link-only UX via s3Key) */
+  externalUrl?: string | null;
   isSaved?: boolean;
   showSaveButton?: boolean;
 }
@@ -19,17 +23,27 @@ export default function ResourceCard({
   description,
   fileType,
   thumbnailUrl,
+  s3Key,
+  externalUrl,
   isSaved = false,
   showSaveButton = true,
 }: ResourceCardProps) {
   const [downloading, setDownloading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewIsExternal, setPreviewIsExternal] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(isSaved);
   const router = useRouter();
+
+  const hasFile = Boolean(s3Key?.trim());
+  const hasExternal = Boolean(externalUrl?.trim());
+  const linkOnly = hasExternal && !hasFile;
+  const canEmbedPreview =
+    !linkOnly && (fileType === "video" || fileType === "pdf" || fileType === "image");
+  const canOpenPreview = linkOnly || canEmbedPreview;
 
   useEffect(() => {
     setSaved(isSaved);
@@ -76,8 +90,9 @@ export default function ResourceCard({
   async function handlePreview() {
     setError(null);
     setPreviewUrl(null);
+    setPreviewIsExternal(false);
     setPreviewOpen(true);
-    if (!canPreview) {
+    if (!canOpenPreview) {
       setPreviewLoading(false);
       return;
     }
@@ -90,6 +105,7 @@ export default function ResourceCard({
       const data = await res.json().catch(() => ({}));
       if (res.ok && typeof data.url === "string") {
         setPreviewUrl(data.url);
+        setPreviewIsExternal(data.externalLink === true);
       } else {
         const msg =
           res.status === 401
@@ -117,7 +133,7 @@ export default function ResourceCard({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && typeof data.url === "string") {
-        window.open(data.url, "_blank");
+        window.open(data.url, "_blank", "noopener,noreferrer");
         return;
       }
       const msg =
@@ -136,8 +152,18 @@ export default function ResourceCard({
     }
   }
 
-  const icon =
-    fileType === "video"
+  let externalHostname: string | null = null;
+  if (previewUrl && previewIsExternal) {
+    try {
+      externalHostname = new URL(previewUrl).hostname;
+    } catch {
+      externalHostname = null;
+    }
+  }
+
+  const icon = linkOnly
+    ? "🔗"
+    : fileType === "video"
       ? "▶"
       : fileType === "pdf"
         ? "📄"
@@ -148,7 +174,6 @@ export default function ResourceCard({
             : fileType === "design"
               ? "🎨"
               : "📎";
-  const canPreview = fileType === "video" || fileType === "pdf" || fileType === "image";
 
   return (
     <>
@@ -195,7 +220,13 @@ export default function ResourceCard({
             disabled={downloading}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark disabled:opacity-50"
           >
-            {downloading ? "Downloading…" : "Download"}
+            {downloading
+              ? linkOnly
+                ? "Opening…"
+                : "Downloading…"
+              : linkOnly
+                ? "Open link"
+                : "Download"}
           </button>
         </div>
       </button>
@@ -232,13 +263,37 @@ export default function ResourceCard({
               {error && !previewLoading && (
                 <p className="text-center text-red-600">{error}</p>
               )}
-              {!canPreview && !previewLoading && (
+              {!canOpenPreview && !previewLoading && (
                 <div className="text-center">
                   <p className="text-gray-600">Preview not available for this file type.</p>
-                  <p className="mt-2 text-sm text-gray-500">Use the Download button to get the file.</p>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Use the {linkOnly ? "Open link" : "Download"} button.
+                  </p>
                 </div>
               )}
-              {previewUrl && !previewLoading && (
+              {previewUrl && !previewLoading && previewIsExternal && (
+                <div className="max-w-md space-y-4 px-4 text-center">
+                  <p className="text-onehope-black">
+                    This resource opens a page outside this site
+                    {externalHostname ? (
+                      <>
+                        {" "}
+                        (<span className="font-medium">{externalHostname}</span>)
+                      </>
+                    ) : null}
+                    .
+                  </p>
+                  <a
+                    href={previewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block rounded-lg bg-primary px-6 py-3 font-semibold text-white hover:bg-primary-dark"
+                  >
+                    Open link
+                  </a>
+                </div>
+              )}
+              {previewUrl && !previewLoading && !previewIsExternal && (
                 <>
                   {fileType === "pdf" && (
                     <iframe

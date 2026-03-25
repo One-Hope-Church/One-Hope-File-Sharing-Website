@@ -20,11 +20,29 @@ type Collection = {
   description?: string;
   heroImage?: string | null;
 };
-type Resource = { _id: string; title?: string; description?: string; fileType?: string };
+type Resource = {
+  _id: string;
+  title?: string;
+  description?: string;
+  fileType?: string;
+  externalUrl?: string;
+  s3Key?: string;
+};
 
 function fileNameWithoutExt(name: string): string {
   const i = name.lastIndexOf(".");
   return i > 0 ? name.slice(0, i) : name;
+}
+
+function looksLikeHttpUrl(raw: string): boolean {
+  const t = raw.trim();
+  if (!t) return false;
+  try {
+    const u = new URL(t);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function suggestFileType(filename: string): string {
@@ -52,6 +70,7 @@ export default function CollectionManageClient({
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editFileType, setEditFileType] = useState("");
+  const [editExternalUrl, setEditExternalUrl] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const selectedCollection = collections.find((c) => c._id === collectionId) ?? null;
@@ -66,6 +85,9 @@ export default function CollectionManageClient({
   const [addFileEntries, setAddFileEntries] = useState<Array<{ file: File; fileType: string; title: string }>>(
     []
   );
+  const [addExternalEntries, setAddExternalEntries] = useState<Array<{ title: string; url: string }>>([]);
+  const [addLinkTitle, setAddLinkTitle] = useState("");
+  const [addLinkUrl, setAddLinkUrl] = useState("");
   const [addUploading, setAddUploading] = useState(false);
   const [addUploadProgress, setAddUploadProgress] = useState<number | null>(null);
   const [addUploadStatus, setAddUploadStatus] = useState("");
@@ -91,6 +113,9 @@ export default function CollectionManageClient({
     setCoverFile(null);
     setCoverPreviewUrl(null);
     setAddFileEntries([]);
+    setAddExternalEntries([]);
+    setAddLinkTitle("");
+    setAddLinkUrl("");
     setAddUploadProgress(null);
     setAddUploadStatus("");
   }, [collectionId, collections, selectedCollection?.description]);
@@ -110,20 +135,29 @@ export default function CollectionManageClient({
     setEditTitle(r.title ?? "");
     setEditDesc(r.description ?? "");
     setEditFileType(r.fileType ?? "");
+    setEditExternalUrl(r.externalUrl ?? "");
   }
 
   async function saveEdit() {
     if (!editingId) return;
     setMessage(null);
     try {
+      const body: Record<string, string | undefined> = {
+        title: editTitle.trim(),
+        description: editDesc.trim() || undefined,
+        fileType: editFileType || undefined,
+      };
+      if (editExternalUrl.trim()) {
+        if (!looksLikeHttpUrl(editExternalUrl)) {
+          setMessage({ type: "err", text: "External URL must be http or https" });
+          return;
+        }
+        body.externalUrl = editExternalUrl.trim();
+      }
       const res = await fetch(`/api/admin/collection-resources/${editingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: editTitle.trim(),
-          description: editDesc.trim() || undefined,
-          fileType: editFileType || undefined,
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -132,7 +166,15 @@ export default function CollectionManageClient({
       setResources((prev) =>
         prev.map((r) =>
           r._id === editingId
-            ? { ...r, title: editTitle.trim(), description: editDesc.trim() || undefined, fileType: editFileType || undefined }
+            ? {
+                ...r,
+                title: editTitle.trim(),
+                description: editDesc.trim() || undefined,
+                fileType: editFileType || undefined,
+                ...(editExternalUrl.trim()
+                  ? { externalUrl: editExternalUrl.trim() }
+                  : {}),
+              }
             : r
         )
       );
@@ -294,8 +336,8 @@ export default function CollectionManageClient({
       setMessage({ type: "err", text: "Choose a collection first." });
       return;
     }
-    if (addFileEntries.length === 0) {
-      setMessage({ type: "err", text: "Add at least one file." });
+    if (addFileEntries.length === 0 && addExternalEntries.length === 0) {
+      setMessage({ type: "err", text: "Add at least one file or external link." });
       return;
     }
 
@@ -350,6 +392,29 @@ export default function CollectionManageClient({
         if (data.collectionResourceId) collectionResourceIds.push(data.collectionResourceId);
       }
 
+      for (let i = 0; i < addExternalEntries.length; i++) {
+        const row = addExternalEntries[i];
+        if (!looksLikeHttpUrl(row.url)) {
+          throw new Error(`Invalid URL for “${row.title}”`);
+        }
+        setAddUploadStatus(`Adding link ${i + 1} of ${addExternalEntries.length}…`);
+        const createRes = await fetch("/api/admin/collection-resources", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: row.title.trim() || `Link ${i + 1}`,
+            fileType: "other",
+            externalUrl: row.url.trim(),
+          }),
+        });
+        if (!createRes.ok) {
+          const data = await createRes.json().catch(() => ({}));
+          throw new Error(data.error ?? "Failed to create link item");
+        }
+        const data = await createRes.json().catch(() => ({}));
+        if (data.collectionResourceId) collectionResourceIds.push(data.collectionResourceId);
+      }
+
       const appendRes = await fetch("/api/admin/collections/append-resources", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -360,8 +425,10 @@ export default function CollectionManageClient({
         throw new Error(appendData.error ?? "Files uploaded but failed to add to collection");
       }
 
-      setMessage({ type: "ok", text: `${addFileEntries.length} file(s) added to the collection.` });
+      const n = addFileEntries.length + addExternalEntries.length;
+      setMessage({ type: "ok", text: `${n} item(s) added to the collection.` });
       setAddFileEntries([]);
+      setAddExternalEntries([]);
       setAddUploadProgress(null);
       setAddUploadStatus("");
       router.refresh();
@@ -548,13 +615,84 @@ export default function CollectionManageClient({
               </div>
             )}
 
+            <div className="rounded-lg border border-onehope-gray bg-onehope-info/10 p-3">
+              <p className="text-sm font-medium text-onehope-black">External links</p>
+              <p className="mt-1 text-xs text-gray-600">
+                Add any https URL (videos, docs, forms) without uploading a file.
+              </p>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1">
+                  <label className="block text-xs text-gray-600">Display name</label>
+                  <input
+                    type="text"
+                    value={addLinkTitle}
+                    onChange={(e) => setAddLinkTitle(e.target.value)}
+                    className="mt-0.5 w-full rounded border border-onehope-gray px-2 py-1 text-sm"
+                    placeholder="Title"
+                  />
+                </div>
+                <div className="min-w-0 flex-[2]">
+                  <label className="block text-xs text-gray-600">URL</label>
+                  <input
+                    type="url"
+                    value={addLinkUrl}
+                    onChange={(e) => setAddLinkUrl(e.target.value)}
+                    className="mt-0.5 w-full rounded border border-onehope-gray px-2 py-1 text-sm"
+                    placeholder="https://…"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!looksLikeHttpUrl(addLinkUrl)) {
+                      setMessage({ type: "err", text: "Enter a valid http or https URL" });
+                      return;
+                    }
+                    setAddExternalEntries((prev) => [
+                      ...prev,
+                      { title: addLinkTitle.trim() || "External link", url: addLinkUrl.trim() },
+                    ]);
+                    setAddLinkTitle("");
+                    setAddLinkUrl("");
+                    setMessage(null);
+                  }}
+                  className="rounded border border-onehope-gray bg-white px-3 py-1.5 text-sm hover:bg-onehope-info/30"
+                >
+                  Queue link
+                </button>
+              </div>
+              {addExternalEntries.length > 0 && (
+                <ul className="mt-2 space-y-1 text-xs">
+                  {addExternalEntries.map((row, i) => (
+                    <li
+                      key={`${i}-${row.url}`}
+                      className="flex items-center justify-between gap-2 rounded border border-onehope-gray bg-white px-2 py-1"
+                    >
+                      <span className="min-w-0 truncate">
+                        {row.title} — {row.url}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAddExternalEntries((prev) => prev.filter((_, j) => j !== i))}
+                        className="shrink-0 text-red-600"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             <button
               type="button"
               onClick={uploadAddFiles}
-              disabled={addUploading || addFileEntries.length === 0}
+              disabled={addUploading || (addFileEntries.length === 0 && addExternalEntries.length === 0)}
               className="w-full rounded-lg bg-primary py-2 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
             >
-              {addUploading ? "Uploading…" : `Add ${addFileEntries.length} file(s)`}
+              {addUploading
+                ? "Uploading…"
+                : `Add ${addFileEntries.length + addExternalEntries.length} item(s)`}
             </button>
           </div>
         </div>
@@ -630,6 +768,16 @@ export default function CollectionManageClient({
                       </option>
                     ))}
                   </select>
+                  <div>
+                    <label className="block text-xs text-gray-600">External URL (optional)</label>
+                    <input
+                      type="url"
+                      value={editExternalUrl}
+                      onChange={(e) => setEditExternalUrl(e.target.value)}
+                      placeholder="https://…"
+                      className="mt-0.5 w-full rounded border border-onehope-gray px-2 py-1 text-sm"
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <button
                       type="button"
@@ -657,6 +805,11 @@ export default function CollectionManageClient({
                     {r.fileType && (
                       <span className="ml-2 rounded bg-onehope-gray/50 px-1.5 py-0.5 text-xs">
                         {r.fileType}
+                      </span>
+                    )}
+                    {r.externalUrl && !r.s3Key && (
+                      <span className="ml-2 rounded bg-primary/15 px-1.5 py-0.5 text-xs text-primary-dark">
+                        link
                       </span>
                     )}
                   </div>

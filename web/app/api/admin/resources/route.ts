@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { createResource } from "@/lib/sanity";
+import { normalizeExternalUrl } from "@/lib/external-link";
 
 export async function POST(request: NextRequest) {
   const session = await getSession();
@@ -10,9 +11,11 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const s3Key = typeof body.s3Key === "string" ? body.s3Key.trim() : "";
-  if (!title || !s3Key) {
+  const externalRaw = typeof body.externalUrl === "string" ? body.externalUrl.trim() : "";
+  const externalUrl = externalRaw ? normalizeExternalUrl(externalRaw) : null;
+  if (!title || (!s3Key && !externalUrl)) {
     return NextResponse.json(
-      { error: "Title and file are required" },
+      { error: "Title and either a file or a valid http(s) link are required" },
       { status: 400 }
     );
   }
@@ -27,7 +30,8 @@ export async function POST(request: NextRequest) {
     description,
     fileType,
     thumbnailAssetId,
-    s3Key,
+    ...(s3Key ? { s3Key } : {}),
+    ...(externalUrl ? { externalUrl } : {}),
     sectionId,
     order,
   });

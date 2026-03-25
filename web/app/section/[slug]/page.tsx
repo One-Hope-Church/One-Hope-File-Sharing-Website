@@ -75,6 +75,8 @@ export default async function SectionPage({ params }: PageProps) {
                 description={r.description ? String(r.description) : undefined}
                 fileType={r.fileType ? String(r.fileType) : undefined}
                 thumbnailUrl={r.thumbnailUrl ? String(r.thumbnailUrl) : undefined}
+                s3Key={r.s3Key ? String(r.s3Key) : undefined}
+                externalUrl={r.externalUrl ? String(r.externalUrl) : undefined}
                 isSaved={savedIds.includes(String(r._id))}
               />
             ))}

@@ -38,6 +38,7 @@ const resourceFields = `
   description,
   fileType,
   s3Key,
+  externalUrl,
   "thumbnailUrl": coalesce(thumbnail.asset->url, thumbnailUrl),
   order
 `;
@@ -48,6 +49,7 @@ const collectionResourceFields = `
   description,
   fileType,
   s3Key,
+  externalUrl,
   _createdAt
 `;
 
@@ -140,7 +142,7 @@ export async function getCollectionResourcesForAdmin(
 ): Promise<Array<Record<string, unknown>>> {
   if (!projectId || projectId === "placeholder") return [];
   const doc = await sanityClient.fetch<{ resources?: Array<Record<string, unknown>> } | null>(
-    `*[_type == "resourceCollection" && _id == $id][0]{ "resources": resources[]->{ _id, title, description, fileType } }`,
+    `*[_type == "resourceCollection" && _id == $id][0]{ "resources": resources[]->{ _id, title, description, fileType, s3Key, externalUrl } }`,
     { id: collectionId }
   );
   return (doc?.resources ?? []) as Array<Record<string, unknown>>;
@@ -151,7 +153,7 @@ export async function getResourceById(id: string) {
   return sanityClient.fetch<Record<string, unknown> | null>(resourceByIdQuery(), { id });
 }
 
-const downloadableFields = `_id, title, description, fileType`;
+const downloadableFields = `_id, title, description, fileType, s3Key, externalUrl`;
 
 /** Get resource or collectionResource docs by IDs (for My Resources). Preserves order of ids. */
 export async function getResourcesByIds(ids: string[]): Promise<Array<Record<string, unknown>>> {
@@ -171,6 +173,8 @@ const savedItemFields = `
   title,
   description,
   fileType,
+  s3Key,
+  externalUrl,
   "thumbnailUrl": coalesce(thumbnail.asset->url, thumbnailUrl),
   "heroImage": heroImage.asset->url,
   "slug": slug.current
@@ -188,14 +192,23 @@ export async function getSavedItemsByIds(ids: string[]): Promise<Array<Record<st
   return ids.map((id) => byId.get(id)).filter(Boolean) as Array<Record<string, unknown>>;
 }
 
-/** Get resource or collectionResource by id (for download). Returns doc with s3Key if found. */
-export async function getDownloadableById(id: string): Promise<{ s3Key: string } | null> {
+/** Get resource or collectionResource by id (for download / preview). Prefer S3 when both exist. */
+export async function getDownloadableById(
+  id: string
+): Promise<{ s3Key?: string; externalUrl?: string } | null> {
   if (!projectId || projectId === "placeholder") return null;
-  const doc = await sanityClient.fetch<{ s3Key?: string } | null>(
-    `*[_type in ["resource", "collectionResource"] && _id == $id][0]{ s3Key }`,
+  const doc = await sanityClient.fetch<{ s3Key?: string; externalUrl?: string } | null>(
+    `*[_type in ["resource", "collectionResource"] && _id == $id][0]{ s3Key, externalUrl }`,
     { id }
   );
-  return doc?.s3Key && typeof doc.s3Key === "string" ? { s3Key: doc.s3Key } : null;
+  if (!doc) return null;
+  const s3 = typeof doc.s3Key === "string" && doc.s3Key.trim() ? doc.s3Key.trim() : undefined;
+  const ext =
+    typeof doc.externalUrl === "string" && doc.externalUrl.trim()
+      ? doc.externalUrl.trim()
+      : undefined;
+  if (!s3 && !ext) return null;
+  return { ...(s3 ? { s3Key: s3 } : {}), ...(ext ? { externalUrl: ext } : {}) };
 }
 
 const MIN_SEARCH_LENGTH = 2;
@@ -264,11 +277,14 @@ export async function createResource(params: {
   description?: string;
   fileType?: string;
   thumbnailAssetId?: string;
-  s3Key: string;
+  s3Key?: string;
+  externalUrl?: string;
   sectionId?: string;
   order?: number;
 }): Promise<string | null> {
   if (!sanityClientWithToken) return null;
+  const s3 = params.s3Key?.trim();
+  const ext = params.externalUrl?.trim();
   const doc = await sanityClientWithToken.create({
     _type: "resource",
     title: params.title,
@@ -280,7 +296,8 @@ export async function createResource(params: {
         asset: { _type: "reference", _ref: params.thumbnailAssetId },
       },
     }),
-    s3Key: params.s3Key,
+    ...(s3 ? { s3Key: s3 } : {}),
+    ...(ext ? { externalUrl: ext } : {}),
     ...(params.sectionId && { section: { _type: "reference", _ref: params.sectionId } }),
     order: params.order ?? 0,
   });
@@ -308,15 +325,19 @@ export async function createResourceGroup(params: {
 /** Create a collection resource (file item inside a collection). No section—only belongs to collections. */
 export async function createCollectionResource(params: {
   title: string;
-  s3Key: string;
+  s3Key?: string;
+  externalUrl?: string;
   fileType?: string;
   description?: string;
 }): Promise<string | null> {
   if (!sanityClientWithToken) return null;
+  const s3 = params.s3Key?.trim();
+  const ext = params.externalUrl?.trim();
   const doc = await sanityClientWithToken.create({
     _type: "collectionResource",
     title: params.title,
-    s3Key: params.s3Key,
+    ...(s3 ? { s3Key: s3 } : {}),
+    ...(ext ? { externalUrl: ext } : {}),
     ...(params.fileType && { fileType: params.fileType }),
     ...(params.description && { description: params.description }),
   });
@@ -544,16 +565,20 @@ export async function setCollectionFeatured(
   }
 }
 
-/** Update a collectionResource document (title, description, fileType). */
+/** Update a collectionResource document (title, description, fileType, externalUrl). */
 export async function updateCollectionResource(
   id: string,
-  updates: { title?: string; description?: string; fileType?: string }
+  updates: { title?: string; description?: string; fileType?: string; externalUrl?: string }
 ): Promise<boolean> {
   if (!sanityClientWithToken) return false;
   const set: Record<string, unknown> = {};
   if (updates.title !== undefined) set.title = updates.title;
   if (updates.description !== undefined) set.description = updates.description;
   if (updates.fileType !== undefined) set.fileType = updates.fileType;
+  if (updates.externalUrl !== undefined) {
+    const v = updates.externalUrl.trim();
+    if (v) set.externalUrl = v;
+  }
   if (Object.keys(set).length === 0) return true;
   await sanityClientWithToken.patch(id).set(set).commit();
   return true;
